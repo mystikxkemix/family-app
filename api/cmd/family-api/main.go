@@ -65,6 +65,7 @@ func run(log *slog.Logger) error {
 		ClientIPHeader: cfg.ClientIPHeader,
 		Version:        version,
 		Arr:            arr.New(settings.Radarr, settings.Sonarr, settings.Prowlarr),
+		Admin:          api.AdminAccount{Username: cfg.AdminUsername, Password: cfg.AdminPassword},
 	})
 	if err != nil {
 		return err

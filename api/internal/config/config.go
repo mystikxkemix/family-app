@@ -38,6 +38,11 @@ type Config struct {
 	ClientIPHeader string
 	// SettingsFile is the path of the JSON settings file (see Settings).
 	SettingsFile string
+	// AdminUsername and AdminPassword create the first account when the
+	// database has none. Its password must be changed at first login. They are
+	// ignored once an account exists.
+	AdminUsername string
+	AdminPassword string
 }
 
 // FromEnv builds the config from the environment, with defaults for local use.
@@ -56,6 +61,8 @@ func FromEnv() (Config, error) {
 		SessionTTL:     time.Duration(ttlDays) * 24 * time.Hour,
 		ClientIPHeader: os.Getenv("CLIENT_IP_HEADER"),
 		SettingsFile:   stringEnv("SETTINGS_FILE", DefaultSettingsFile),
+		AdminUsername:  stringEnv("ADMIN_USERNAME", "admin"),
+		AdminPassword:  os.Getenv("ADMIN_PASSWORD"),
 	}, nil
 }
 

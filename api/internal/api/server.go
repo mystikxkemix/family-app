@@ -3,13 +3,11 @@ package api
 
 import (
 	"context"
-	"crypto/subtle"
 	"log/slog"
 	"net"
 	"net/http"
 	"runtime/debug"
 	"strings"
-	"sync"
 	"time"
 
 	"familyapp/internal/arr"
@@ -29,6 +27,14 @@ type Options struct {
 	Version        string
 	// Arr holds the optional Radarr, Sonarr and Prowlarr clients.
 	Arr *arr.Services
+	// Admin is the first account, created when the database has no user.
+	Admin AdminAccount
+}
+
+// AdminAccount is the first account, from the ADMIN_* environment variables.
+type AdminAccount struct {
+	Username string
+	Password string
 }
 
 // Server holds the dependencies of the handlers.
@@ -39,8 +45,6 @@ type Server struct {
 	options  Options
 	arr      *arr.Services
 
-	setup *setupGate
-
 	// requestLimiter limits every request per client IP.
 	requestLimiter *auth.Limiter
 	// loginLimiter limits login and signup attempts per client IP.
@@ -50,7 +54,7 @@ type Server struct {
 }
 
 // New builds the server. When the database has no user yet, it creates the
-// one-time setup code that the first signup must give, and logs it.
+// admin account (see createAdmin).
 func New(ctx context.Context, st *store.Store, notifier *push.Notifier, log *slog.Logger, options Options) (*Server, error) {
 	s := &Server{
 		store:          st,
@@ -58,7 +62,6 @@ func New(ctx context.Context, st *store.Store, notifier *push.Notifier, log *slo
 		log:            log,
 		options:        options,
 		arr:            options.Arr,
-		setup:          &setupGate{},
 		requestLimiter: auth.NewLimiter(600, 120),
 		loginLimiter:   auth.NewLimiter(10, 10),
 		accountLimiter: auth.NewLimiter(6, 10),
@@ -71,8 +74,9 @@ func New(ctx context.Context, st *store.Store, notifier *push.Notifier, log *slo
 		return nil, err
 	}
 	if count == 0 {
-		s.setup.code = auth.NewCode(3)
-		log.Warn("no account yet: create the first one in the app with this setup code", "setupCode", s.setup.code)
+		if err := s.createAdmin(ctx, options.Admin); err != nil {
+			return nil, err
+		}
 	}
 	return s, nil
 }
@@ -88,14 +92,15 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/auth/login", s.handle(s.login))
 
 	// Account and household.
-	mux.HandleFunc("POST /api/v1/auth/logout", s.authed(s.logout))
-	mux.HandleFunc("GET /api/v1/me", s.authed(s.me))
+	// Open to an account that must still change its password.
+	mux.HandleFunc("POST /api/v1/auth/logout", s.authedDuringPasswordChange(s.logout))
+	mux.HandleFunc("GET /api/v1/me", s.authedDuringPasswordChange(s.me))
+	mux.HandleFunc("POST /api/v1/me/password", s.authedDuringPasswordChange(s.changePassword))
+	mux.HandleFunc("PUT /api/v1/devices/{token}", s.authedDuringPasswordChange(s.registerDevice))
+	mux.HandleFunc("DELETE /api/v1/devices/{token}", s.authedDuringPasswordChange(s.unregisterDevice))
 	mux.HandleFunc("PATCH /api/v1/me", s.authed(s.updateMe))
-	mux.HandleFunc("POST /api/v1/me/password", s.authed(s.changePassword))
 	mux.HandleFunc("PATCH /api/v1/household", s.authed(s.updateHousehold))
 	mux.HandleFunc("POST /api/v1/household/invites", s.authed(s.createInvite))
-	mux.HandleFunc("PUT /api/v1/devices/{token}", s.authed(s.registerDevice))
-	mux.HandleFunc("DELETE /api/v1/devices/{token}", s.authed(s.unregisterDevice))
 
 	// Shared lists.
 	mux.HandleFunc("GET /api/v1/lists", s.authed(s.listLists))
@@ -239,22 +244,4 @@ func (s *Server) logRequests(next http.Handler) http.Handler {
 		s.log.Info("request", "method", r.Method, "path", r.URL.Path, "status", recorder.status,
 			"duration", time.Since(start).Round(time.Millisecond), "ip", s.clientIP(r))
 	})
-}
-
-// --- First signup -------------------------------------------------------------
-
-// setupGate holds the one-time code for the very first account. Without it,
-// anyone who finds the public URL first could create the first household.
-type setupGate struct {
-	mu   sync.Mutex
-	code string
-}
-
-// check reports whether the given code is the current setup code.
-func (g *setupGate) check(code string) bool {
-	if g.code == "" {
-		return false
-	}
-	expected := auth.NormalizeCode(g.code)
-	return subtle.ConstantTimeCompare([]byte(auth.NormalizeCode(code)), []byte(expected)) == 1
 }

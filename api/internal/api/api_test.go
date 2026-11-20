@@ -28,8 +28,11 @@ import (
 //
 // Each run uses its own database and drops it at the end.
 func newTestServer(t *testing.T) (*Server, *httptest.Server) {
-	return newTestServerWith(t, Options{SessionTTL: time.Hour})
+	return newTestServerWith(t, Options{SessionTTL: time.Hour, Admin: testAdmin})
 }
+
+// testAdmin is the first account, as if set by ADMIN_USERNAME / ADMIN_PASSWORD.
+var testAdmin = AdminAccount{Username: "Alex", Password: "initial-password"}
 
 func newTestServerWith(t *testing.T, options Options) (*Server, *httptest.Server) {
 	t.Helper()
@@ -96,26 +99,30 @@ func TestEndToEnd(t *testing.T) {
 	// covers the limit itself.
 	server.loginLimiter = auth.NewLimiter(1000, 1000)
 	anonymous := &client{t: t, base: httpServer.URL}
-	setupCode := server.setup.code
-	if setupCode == "" {
-		t.Fatal("an empty database must create a setup code")
-	}
-
-	// --- Signup: the first account needs the setup code. ---
-	signup := map[string]string{"username": "Alex", "password": "password-1", "displayName": "Alex"}
-	anonymous.call("POST", "/api/v1/auth/register", signup, 400, nil)
-	signup["setupCode"] = "WRONG-CODE-0000"
-	anonymous.call("POST", "/api/v1/auth/register", signup, 403, nil)
-	signup["setupCode"] = setupCode
-	signup["householdName"] = "Our home"
+	// --- First login: the admin from the environment must change its password. ---
 	var alexAuth authResponse
-	anonymous.call("POST", "/api/v1/auth/register", signup, 201, &alexAuth)
-	if alexAuth.User.Username != "alex" || alexAuth.Token == "" {
-		t.Fatalf("bad signup answer: %+v", alexAuth)
+	anonymous.call("POST", "/api/v1/auth/login", map[string]string{"username": "alex", "password": testAdmin.Password}, 200, &alexAuth)
+	if !alexAuth.User.MustChangePassword {
+		t.Fatalf("the env admin must change its password: %+v", alexAuth.User)
 	}
-	signup["username"] = "someone-else"
-	anonymous.call("POST", "/api/v1/auth/register", signup, 403, nil) // setup code is one-time
 	alex := &client{t: t, base: httpServer.URL, token: alexAuth.Token}
+	alex.call("GET", "/api/v1/lists", nil, 403, nil)
+	alex.call("POST", "/api/v1/household/invites", nil, 403, nil)
+	var pending meResponse
+	alex.call("GET", "/api/v1/me", nil, 200, &pending)
+	if !pending.User.MustChangePassword || pending.Household.Name != "Home" {
+		t.Fatalf("me before the change: %+v", pending)
+	}
+	samePassword := map[string]string{"currentPassword": testAdmin.Password, "newPassword": testAdmin.Password}
+	alex.call("POST", "/api/v1/me/password", samePassword, 400, nil)
+	alex.call("POST", "/api/v1/me/password", map[string]string{"currentPassword": testAdmin.Password, "newPassword": "password-1"}, 204, nil)
+	alex.call("GET", "/api/v1/lists", nil, 200, nil)
+	anonymous.call("POST", "/api/v1/auth/login", map[string]string{"username": "alex", "password": testAdmin.Password}, 401, nil)
+	alex.call("PATCH", "/api/v1/household", map[string]string{"name": "Our home"}, 200, nil)
+
+	// --- No signup without an invite. ---
+	anonymous.call("POST", "/api/v1/auth/register", map[string]string{"username": "eve", "password": "password-9", "displayName": "Eve"}, 400, nil)
+	anonymous.call("POST", "/api/v1/auth/register", map[string]string{"username": "eve", "password": "password-9", "displayName": "Eve", "inviteCode": "WRONG-CODE-0000"}, 403, nil)
 
 	// --- Invite the partner. ---
 	var invite inviteResponse
@@ -269,15 +276,34 @@ func TestLoginIsRateLimited(t *testing.T) {
 	anonymous.call("POST", "/api/v1/auth/login", wrong, 429, nil)
 }
 
-// signUp creates the first account and returns its client.
+// signUp logs in as the env admin, changes its password and returns its client.
 func signUp(t *testing.T, server *Server, base string) *client {
 	t.Helper()
 	anonymous := &client{t: t, base: base}
 	var answer authResponse
-	anonymous.call("POST", "/api/v1/auth/register", map[string]string{
-		"username": "alex", "password": "password-1", "displayName": "Alex", "setupCode": server.setup.code,
-	}, 201, &answer)
-	return &client{t: t, base: base, token: answer.Token}
+	anonymous.call("POST", "/api/v1/auth/login", map[string]string{"username": testAdmin.Username, "password": testAdmin.Password}, 200, &answer)
+	alex := &client{t: t, base: base, token: answer.Token}
+	alex.call("POST", "/api/v1/me/password", map[string]string{"currentPassword": testAdmin.Password, "newPassword": "password-1"}, 204, nil)
+	return alex
+}
+
+func TestAdminIsRequiredOnEmptyDatabase(t *testing.T) {
+	uri := os.Getenv("TEST_MONGODB_URI")
+	if uri == "" {
+		t.Skip("TEST_MONGODB_URI is not set")
+	}
+	ctx := context.Background()
+	st, err := store.Open(ctx, uri, "family_test_"+bson.NewObjectID().Hex())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = st.DropDatabase(ctx); _ = st.Close(ctx) }()
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	for _, admin := range []AdminAccount{{Username: "admin"}, {Username: "admin", Password: "short"}, {Username: "x", Password: "long-enough"}} {
+		if _, err := New(ctx, st, push.NewNotifier(st, nil, log), log, Options{Admin: admin}); err == nil {
+			t.Fatalf("admin %+v must be refused", admin)
+		}
+	}
 }
 
 func TestPlaces(t *testing.T) {
@@ -345,7 +371,7 @@ func TestMediaTools(t *testing.T) {
 	}))
 	defer fake.Close()
 	cfg := config.ArrConfig{URL: fake.URL, APIKey: "k"}
-	server, httpServer := newTestServerWith(t, Options{SessionTTL: time.Hour, Arr: arr.New(cfg, config.ArrConfig{}, cfg)})
+	server, httpServer := newTestServerWith(t, Options{SessionTTL: time.Hour, Admin: testAdmin, Arr: arr.New(cfg, config.ArrConfig{}, cfg)})
 	alex := signUp(t, server, httpServer.URL)
 
 	var me meResponse

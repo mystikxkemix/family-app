@@ -72,16 +72,22 @@ sees them. Any member of the household can start a download.
 
 ### First account
 
-When the database has no user, the API writes a one-time **setup code** in its
-logs:
+The first account comes from two environment variables, read only when the
+database has no account yet:
 
-```
-{"level":"WARN","msg":"no account yet: create the first one in the app with this setup code","setupCode":"K7PM-2XQR-9TWB"}
-```
+| Variable | Default | Meaning |
+|---|---|---|
+| `ADMIN_USERNAME` | `admin` | Username of the first account. |
+| `ADMIN_PASSWORD` | none, required | Its first password (at least 8 characters). |
 
-In the app, choose **First setup** and type this code. After that, add people
-with **Settings > Invite someone**: the other person chooses **Join** and types
-the invite code.
+Without `ADMIN_PASSWORD`, an empty database stops the API with an error. At the
+first login the app asks for a **new password**, and nothing else works until
+it is changed. So the value left in the environment is no longer a valid
+password. Change it right after the first start: until then, anyone who knows
+it could log in.
+
+Add the other people with **Settings > Invite someone**: the other person
+chooses **Join** and types the invite code.
 
 ### Security
 
@@ -91,8 +97,9 @@ The API is made to be reachable from the internet.
   plain `http://`, except for local network addresses.
 - Passwords are hashed with Argon2id. Login tokens are 256-bit random values;
   the database only stores their SHA-256 hash.
-- No open signup: the first account needs the setup code from the logs, the
-  next ones need an invite code (one use, 7 days).
+- No open signup: the first account comes from `ADMIN_USERNAME` /
+  `ADMIN_PASSWORD` and must change its password at first login; the next
+  ones need an invite code (one use, 7 days).
 - Rate limits: per IP on every request, and stricter on login and signup
   (per IP and per username).
 - Every query is scoped to the caller's household.
@@ -152,10 +159,11 @@ ios/Scripts/ui-test.sh              # default simulator: iPhone 17
 ios/Scripts/ui-test.sh "iPhone Air" # or another one
 ```
 
-The script starts a throwaway MongoDB and API in Docker, writes the server
-address and the setup code to `ios/build/ui-test/settings.json` (a local file,
-read by the tests), and runs the tests in the simulator. The tests create the
-first account, then use every screen: lists, watchlist, places, events and
+The script starts a throwaway MongoDB and API in Docker with a random admin
+password, writes the server address and the admin account to
+`ios/build/ui-test/settings.json` (a local file, read by the tests), and runs
+the tests in the simulator. The tests log in as the admin, go through the
+forced password change, then use every screen: lists, watchlist, places, events and
 settings, and check the tabs in French. Screenshots go to
 `ios/build/ui-test/screenshots`. Needs Docker; they do not run in CI.
 

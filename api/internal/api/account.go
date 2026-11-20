@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -35,8 +36,25 @@ type principal struct {
 // authedFunc is a handler that runs only for a logged-in caller.
 type authedFunc func(w http.ResponseWriter, r *http.Request, caller principal) error
 
+var errPasswordChangeRequired = &apiError{
+	Status: http.StatusForbidden, Code: "password_change_required",
+	Message: "choose a new password before using the app",
+}
+
 // authed checks the "Authorization: Bearer <token>" header before the handler.
+// An account that must change its password can only use the routes of
+// authedDuringPasswordChange.
 func (s *Server) authed(handler authedFunc) http.HandlerFunc {
+	return s.authenticate(handler, false)
+}
+
+// authedDuringPasswordChange is authed, but also open to an account that must
+// still change its password: profile, password change, logout, push device.
+func (s *Server) authedDuringPasswordChange(handler authedFunc) http.HandlerFunc {
+	return s.authenticate(handler, true)
+}
+
+func (s *Server) authenticate(handler authedFunc, allowPendingPasswordChange bool) http.HandlerFunc {
 	return s.handle(func(w http.ResponseWriter, r *http.Request) error {
 		token, found := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if !found || token == "" {
@@ -56,6 +74,9 @@ func (s *Server) authed(handler authedFunc) http.HandlerFunc {
 		if err != nil {
 			return err
 		}
+		if user.MustChangePassword && !allowPendingPasswordChange {
+			return errPasswordChangeRequired
+		}
 		// Sliding expiry: a session used at least once per SessionTTL never expires.
 		if time.Since(session.RefreshedAt) > sessionRefreshEvery {
 			if err := s.store.RefreshSession(r.Context(), session.ID, s.options.SessionTTL); err != nil {
@@ -72,12 +93,8 @@ type registerRequest struct {
 	Username    string `json:"username"`
 	Password    string `json:"password"`
 	DisplayName string `json:"displayName"`
-	// SetupCode creates the first account and its household.
-	SetupCode string `json:"setupCode"`
 	// InviteCode joins the household that created the invite.
 	InviteCode string `json:"inviteCode"`
-	// HouseholdName names the new household (setup code only).
-	HouseholdName string `json:"householdName"`
 }
 
 type authResponse struct {
@@ -109,44 +126,49 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	switch {
-	case request.InviteCode != "":
-		err = s.registerWithInvite(r.Context(), user, request.InviteCode)
-	case request.SetupCode != "":
-		err = s.registerFirstUser(r.Context(), user, request.SetupCode, request.HouseholdName)
-	default:
-		err = badRequest("an invite code is required")
+	// The first account comes from the ADMIN_* variables: every signup needs an invite.
+	if strings.TrimSpace(request.InviteCode) == "" {
+		return badRequest("an invite code is required")
 	}
-	if err != nil {
+	if err := s.registerWithInvite(r.Context(), user, request.InviteCode); err != nil {
 		return err
 	}
 	return s.startSession(w, r.Context(), user, http.StatusCreated)
 }
 
-// registerFirstUser creates the first household and its first member.
-func (s *Server) registerFirstUser(ctx context.Context, user *store.User, setupCode, householdName string) error {
-	s.setup.mu.Lock()
-	defer s.setup.mu.Unlock()
-	if !s.setup.check(setupCode) {
-		return &apiError{Status: http.StatusForbidden, Code: "invalid_code", Message: "invalid or expired code"}
+// createAdmin creates the first household and its admin from the ADMIN_*
+// variables. The admin must change this password at first login, so the value
+// left in the environment stops being a valid password.
+func (s *Server) createAdmin(ctx context.Context, admin AdminAccount) error {
+	if admin.Password == "" {
+		return errors.New("no account yet: set ADMIN_PASSWORD (and optionally ADMIN_USERNAME) to create the first one")
 	}
-	name, err := cleanText("householdName", householdName, false, 40)
+	username, err := normalizeUsername(admin.Username)
+	if err != nil {
+		return fmt.Errorf("ADMIN_USERNAME: %w", err)
+	}
+	if err := checkPassword(admin.Password); err != nil {
+		return fmt.Errorf("ADMIN_PASSWORD: %w", err)
+	}
+	hash, err := auth.HashPassword(admin.Password)
 	if err != nil {
 		return err
 	}
-	if name == "" {
-		name = "Home"
-	}
-	household := &store.Household{Name: name}
+	household := &store.Household{Name: "Home"}
 	if err := s.store.CreateHousehold(ctx, household); err != nil {
 		return err
 	}
-	user.HouseholdID = household.ID
+	user := &store.User{
+		Username:           username,
+		DisplayName:        admin.Username,
+		PasswordHash:       hash,
+		HouseholdID:        household.ID,
+		MustChangePassword: true,
+	}
 	if err := s.store.CreateUser(ctx, user); err != nil {
 		return err
 	}
-	s.setup.code = ""
-	s.log.Info("first account created; the setup code is no longer valid")
+	s.log.Warn("admin account created from ADMIN_USERNAME / ADMIN_PASSWORD: log in and choose a new password now", "username", username)
 	return nil
 }
 
@@ -308,11 +330,15 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request, caller p
 	if err := checkPassword(request.NewPassword); err != nil {
 		return err
 	}
+	if request.NewPassword == request.CurrentPassword {
+		return &apiError{Status: http.StatusBadRequest, Code: "same_password", Message: "the new password must be different"}
+	}
 	hash, err := auth.HashPassword(request.NewPassword)
 	if err != nil {
 		return err
 	}
-	if _, err := s.store.UpdateUser(r.Context(), caller.User.ID, bson.M{"passwordHash": hash}); err != nil {
+	set := bson.M{"passwordHash": hash, "mustChangePassword": false}
+	if _, err := s.store.UpdateUser(r.Context(), caller.User.ID, set); err != nil {
 		return err
 	}
 	if err := s.store.DeleteOtherSessions(r.Context(), caller.User.ID, caller.SessionID); err != nil {

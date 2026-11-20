@@ -20,7 +20,10 @@ type User struct {
 	DisplayName  string        `bson:"displayName" json:"displayName"`
 	PasswordHash string        `bson:"passwordHash" json:"-"`
 	HouseholdID  bson.ObjectID `bson:"householdId" json:"-"`
-	CreatedAt    time.Time     `bson:"createdAt" json:"createdAt"`
+	// MustChangePassword blocks the account until the user picks a new
+	// password. Set on the admin account created from environment variables.
+	MustChangePassword bool      `bson:"mustChangePassword" json:"mustChangePassword"`
+	CreatedAt          time.Time `bson:"createdAt" json:"createdAt"`
 }
 
 // Session is a login. Only the SHA-256 hash of the bearer token is stored.
