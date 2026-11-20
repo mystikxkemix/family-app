@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Entitlements without push, for a signing profile whose provisioning profile
+  has no Push Notifications capability (for example a team wildcard profile).
+  Select it in Config/Signing/<name>.xcconfig:
+  CODE_SIGN_ENTITLEMENTS = FamilyApp/Resources/FamilyApp-NoPush.entitlements
+-->
+<plist version="1.0">
+<dict/>
+</plist>
