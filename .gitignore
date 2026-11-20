@@ -1,0 +1,30 @@
+# macOS
+.DS_Store
+
+# Secrets and personal config: never commit
+.env
+.env.*
+*.p8
+*.p12
+*.cer
+*.mobileprovision
+*.provisionprofile
+apns.json
+
+# API
+/api/family-api
+
+# iOS: generated project and build output (project.yml is the source of truth)
+ios/*.xcodeproj
+ios/build/
+ios/DerivedData/
+xcuserdata/
+*.xcuserstate
+
+# iOS signing: personal team ids and bundle ids
+ios/Config/Local.xcconfig
+ios/Config/Signing/*.xcconfig
+!ios/Config/Signing/example.xcconfig
+
+# Claude Code local state
+.claude/settings.local.json

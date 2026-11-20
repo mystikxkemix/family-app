@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    name: API tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    services:
+      mongo:
+        image: mongo:8
+        ports:
+          - 27017:27017
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          # Keep in sync with api/go.mod and api/Dockerfile.
+          go-version: "1.27"
+          cache-dependency-path: api/go.sum
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "Run gofmt -w on:"; echo "$unformatted"; exit 1
+          fi
+      - run: go vet ./...
+      - run: go test -race -count=1 ./...
+        env:
+          TEST_MONGODB_URI: mongodb://localhost:27017
+
+  ios:
+    name: iOS build
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@v7
+      - run: brew install xcodegen
+      - run: xcodegen generate
+      # Simulator build: no signing, so no team id is needed in CI.
+      - run: |
+          xcodebuild build -project FamilyApp.xcodeproj -scheme FamilyApp \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO | tail -n 50
+          test "${PIPESTATUS[0]}" -eq 0
+
+  # Publishes ghcr.io/<owner>/family-api after the tests pass on master.
+  # The package is public, so ZimaOS pulls it without a login.
+  image:
+    name: Publish image
+    needs: [api]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # full history: the version counts master commits
+      # Version 1.<number of commits on master>: grows by one per push, and a re-run
+      # of the same commit gets the same version.
+      - id: version
+        run: echo "version=1.$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/family-api
+          tags: |
+            type=raw,value=${{ steps.version.outputs.version }},priority=1000
+            type=raw,value=latest
+            type=sha,format=short
+      - uses: docker/build-push-action@v7
+        with:
+          context: api
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: VERSION=${{ steps.version.outputs.version }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # No build provenance: it embeds the GitHub push event (commit emails and
+          # messages), which anyone could read since the package is public.
+          provenance: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
