@@ -192,13 +192,13 @@ private struct PasswordSheet: View {
             Form {
                 Section {
                     SecureField("Current password", text: $current)
-                        .textContentType(.password)
+                        .autoFillContentType(.password)
                 }
                 Section {
                     SecureField("New password", text: $new)
-                        .textContentType(.newPassword)
+                        .autoFillContentType(.newPassword)
                     SecureField("Confirm new password", text: $confirmation)
-                        .textContentType(.newPassword)
+                        .autoFillContentType(.newPassword)
                 } footer: {
                     Text("At least 8 characters. Your other devices will be logged out.")
                 }
@@ -212,12 +212,7 @@ private struct PasswordSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         Task {
-                            let saved = await session.run { api in
-                                let _: NoContent = try await api.post(
-                                    "me/password",
-                                    ["currentPassword": .string(current), "newPassword": .string(new)])
-                            }
-                            if saved { dismiss() }
+                            if await session.changePassword(current: current, new: new) { dismiss() }
                         }
                     }
                     .disabled(!isValid)

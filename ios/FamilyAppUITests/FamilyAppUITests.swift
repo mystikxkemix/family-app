@@ -1,11 +1,11 @@
 import XCTest
 
-/// Settings written by Scripts/ui-test.sh to build/ui-test/settings.json.
-/// A local file, not environment variables: the server address and the setup
-/// code never leave this machine.
+/// Settings written by Scripts/ui-test.sh to build/ui-test/settings.json:
+/// the test API address and its admin account (ADMIN_USERNAME / ADMIN_PASSWORD).
 private struct UITestSettings: Decodable {
     let serverURL: String
-    let setupCode: String
+    let adminUsername: String
+    let adminPassword: String
     let screenshotsDir: String
 
     static func load() throws -> UITestSettings {
@@ -19,8 +19,9 @@ private struct UITestSettings: Decodable {
     }
 }
 
-/// Walks through every screen after login: first account, lists, watchlist,
-/// places, events and settings, in English, then checks the tabs in French.
+/// Walks through every screen after login: first admin login with the forced
+/// password change, lists, watchlist, places, events and settings, in English,
+/// then checks the tabs in French.
 @MainActor
 final class FamilyAppUITests: XCTestCase {
     private var app = XCUIApplication()
@@ -29,10 +30,10 @@ final class FamilyAppUITests: XCTestCase {
     func testScreensAfterLogin() throws {
         continueAfterFailure = false
         settings = try UITestSettings.load()
-        app.launchArguments = ["-uiTestReset", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launchArguments = ["-uiTesting", "-uiTestReset", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
 
-        createFirstAccount()
+        firstAdminLogin()
         checkLists()
         checkWatchlist()
         checkPlaces()
@@ -43,19 +44,22 @@ final class FamilyAppUITests: XCTestCase {
 
     // MARK: Steps
 
-    private func createFirstAccount() {
+    private func firstAdminLogin() {
         snapshot("00-login")
-        // Password first, in "Log in" mode: the simulator's strong-password
-        // AutoFill swallows typing in a "new password" field.
         type(settings.serverURL, into: app.textFields["auth.server"])
-        type("alex", into: app.textFields["auth.username"])
-        typeSecure("password-1", into: app.secureTextFields["auth.password"])
-        app.segmentedControls["auth.mode"].buttons.element(boundBy: 2).tap()
-        type("Alex", into: app.textFields["auth.displayName"])
-        type(settings.setupCode, into: app.textFields["auth.code"])
-        type("Our home", into: app.textFields["auth.householdName"])
+        type(settings.adminUsername, into: app.textFields["auth.username"])
+        typeSecure(settings.adminPassword, into: app.secureTextFields["auth.password"])
         app.buttons["auth.submit"].tap()
-        XCTAssertTrue(app.tabBars.buttons["Lists"].waitForExistence(timeout: 15), "login did not reach the tabs")
+
+        // The admin password comes from the server settings: it must be changed first.
+        let newPassword = app.secureTextFields["password.new"]
+        XCTAssertTrue(newPassword.waitForExistence(timeout: 15), "no forced password change after the first login")
+        XCTAssertFalse(app.tabBars.buttons["Lists"].exists, "the app must stay locked until the password changes")
+        snapshot("00-choose-password")
+        typeSecure("password-1", into: newPassword)
+        typeSecure("password-1", into: app.secureTextFields["password.confirm"])
+        app.buttons["password.save"].tap()
+        XCTAssertTrue(app.tabBars.buttons["Lists"].waitForExistence(timeout: 15), "the password change did not unlock the app")
     }
 
     private func checkLists() {
@@ -140,7 +144,7 @@ final class FamilyAppUITests: XCTestCase {
     /// Relaunches in French (the login is kept) and checks the tab titles.
     private func checkFrenchTabs() {
         app.terminate()
-        app.launchArguments = ["-AppleLanguages", "(fr)", "-AppleLocale", "fr_FR"]
+        app.launchArguments = ["-uiTesting", "-AppleLanguages", "(fr)", "-AppleLocale", "fr_FR"]
         app.launch()
         for (index, title) in ["Listes", "À regarder", "Lieux", "Événements", "Réglages"].enumerated() {
             let tab = app.tabBars.buttons[title]
@@ -158,16 +162,35 @@ final class FamilyAppUITests: XCTestCase {
         field.typeText(text)
     }
 
-    /// Secure fields drop keys when the text comes in one burst: type one
-    /// character at a time, then check the length.
+    /// Secure fields drop keys when the text comes in one burst, mostly on a
+    /// fresh simulator: wait for the keyboard, type one character at a time,
+    /// and start again (up to 3 times) when the length is wrong. The length is
+    /// all a test can read from a secure field.
     private func typeSecure(_ text: String, into field: XCUIElement) {
         XCTAssertTrue(field.waitForExistence(timeout: 5), "missing field \(field)")
-        field.tap()
-        for character in text {
-            field.typeText(String(character))
+        var typed = 0
+        for _ in 1...3 {
+            field.tap()
+            XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "no keyboard for \(field)")
+            let existing = secureLength(field)
+            if existing > 0 {
+                field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: existing))
+            }
+            for character in text {
+                field.typeText(String(character))
+                Thread.sleep(forTimeInterval: 0.15)
+            }
+            typed = secureLength(field)
+            if typed == text.count { return }
         }
-        let typed = (field.value as? String)?.count ?? 0
-        XCTAssertEqual(typed, text.count, "secure field got \(typed) of \(text.count) characters")
+        XCTFail("secure field got \(typed) of \(text.count) characters")
+    }
+
+    /// Number of characters in a secure field (its value is one bullet each,
+    /// or the placeholder when empty).
+    private func secureLength(_ field: XCUIElement) -> Int {
+        let value = field.value as? String ?? ""
+        return value == field.placeholderValue ? 0 : value.count
     }
 
     /// An element whose label contains the text, ignoring case (section

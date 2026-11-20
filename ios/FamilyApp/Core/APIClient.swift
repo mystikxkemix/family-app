@@ -36,6 +36,7 @@ enum APIError: LocalizedError, Equatable {
         case "invalid_code": String(localized: "This code is not valid or has expired.")
         case "conflict": String(localized: "This username is already taken.")
         case "not_found": String(localized: "This item no longer exists.")
+        case "same_password": String(localized: "The new password must be different from the current one.")
         default: nil
         }
     }

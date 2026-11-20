@@ -1,12 +1,13 @@
 import SwiftUI
 
-/// Login, joining a household with an invite code, or creating the very first
-/// account with the setup code from the API logs.
+/// Login, or joining a household with an invite code. The very first account
+/// is the admin set on the server (ADMIN_USERNAME / ADMIN_PASSWORD): it logs in
+/// here, then must choose a new password.
 struct AuthView: View {
     @Environment(AppSession.self) private var session
 
     private enum Mode: Hashable {
-        case login, join, setup
+        case login, join
     }
 
     @State private var mode = Mode.login
@@ -15,7 +16,6 @@ struct AuthView: View {
     @State private var password = ""
     @State private var displayName = ""
     @State private var code = ""
-    @State private var householdName = ""
     @State private var isWorking = false
     @State private var errorMessage: String?
 
@@ -40,7 +40,6 @@ struct AuthView: View {
                     Picker("Mode", selection: $mode) {
                         Text("Log in").tag(Mode.login)
                         Text("Join").tag(Mode.join)
-                        Text("First setup").tag(Mode.setup)
                     }
                     .pickerStyle(.segmented)
                     .accessibilityIdentifier("auth.mode")
@@ -51,19 +50,21 @@ struct AuthView: View {
                 Section {
                     TextField("Username", text: $username)
                         .accessibilityIdentifier("auth.username")
-                        .textContentType(.username)
+                        .autoFillContentType(.username)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     SecureField("Password", text: $password)
                         .accessibilityIdentifier("auth.password")
-                        .textContentType(mode == .login ? .password : .newPassword)
+                        .autoFillContentType(mode == .login ? .password : .newPassword)
                     if mode != .login {
                         TextField("Your first name", text: $displayName)
                             .accessibilityIdentifier("auth.displayName")
                             .textContentType(.givenName)
                     }
                 } footer: {
-                    if mode != .login {
+                    if mode == .login {
+                        Text("First time? Log in with the admin account set on the server, then choose your own password.")
+                    } else {
                         Text("At least 8 characters for the password.")
                     }
                 }
@@ -76,19 +77,6 @@ struct AuthView: View {
                             .autocorrectionDisabled()
                     } footer: {
                         Text("Ask a member of the household to create an invite in Settings.")
-                    }
-                }
-
-                if mode == .setup {
-                    Section {
-                        TextField("Setup code", text: $code)
-                            .accessibilityIdentifier("auth.code")
-                            .textInputAutocapitalization(.characters)
-                            .autocorrectionDisabled()
-                        TextField("Household name", text: $householdName)
-                            .accessibilityIdentifier("auth.householdName")
-                    } footer: {
-                        Text("Only for the very first account. The setup code is in the API logs.")
                     }
                 }
 
@@ -132,7 +120,7 @@ struct AuthView: View {
         let base = !server.isEmpty && !username.isEmpty && !password.isEmpty
         switch mode {
         case .login: return base
-        case .join, .setup: return base && !displayName.isEmpty && !code.isEmpty
+        case .join: return base && !displayName.isEmpty && !code.isEmpty
         }
     }
 
@@ -148,11 +136,7 @@ struct AuthView: View {
                 case .join:
                     try await session.register(
                         server: server, username: username, password: password,
-                        displayName: displayName, signup: .invite(code: code))
-                case .setup:
-                    try await session.register(
-                        server: server, username: username, password: password,
-                        displayName: displayName, signup: .setup(code: code, householdName: householdName))
+                        displayName: displayName, inviteCode: code)
                 }
             } catch {
                 errorMessage = error.localizedDescription

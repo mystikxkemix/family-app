@@ -20,6 +20,11 @@ final class AppSession {
     private(set) var me: MeResponse?
     /// The last error, shown as an alert by the root view.
     var errorMessage: String?
+    /// True while the account must choose a new password before using the app.
+    private(set) var passwordChangeRequired = false
+    /// The password typed at login, kept in memory only, so the "choose your
+    /// password" screen does not ask for it again.
+    private(set) var loginPassword: String?
 
     var isLoggedIn: Bool { token != nil && serverURL != nil }
 
@@ -47,28 +52,19 @@ final class AppSession {
         let url = try APIClient.serverURL(from: server)
         let response: AuthResponse = try await APIClient(baseURL: url, token: nil)
             .post("auth/login", ["username": .string(username), "password": .string(password)])
+        loginPassword = response.user.mustChangePassword ? password : nil
         await start(url: url, response: response)
     }
 
-    enum Signup {
-        case invite(code: String)
-        case setup(code: String, householdName: String)
-    }
-
-    func register(server: String, username: String, password: String, displayName: String, signup: Signup) async throws {
+    /// Creates an account in the household that made the invite.
+    func register(server: String, username: String, password: String, displayName: String, inviteCode: String) async throws {
         let url = try APIClient.serverURL(from: server)
-        var body: JSONBody = [
+        let body: JSONBody = [
             "username": .string(username),
             "password": .string(password),
             "displayName": .string(displayName),
+            "inviteCode": .string(inviteCode),
         ]
-        switch signup {
-        case .invite(let code):
-            body["inviteCode"] = .string(code)
-        case .setup(let code, let householdName):
-            body["setupCode"] = .string(code)
-            body["householdName"] = .string(householdName)
-        }
         let response: AuthResponse = try await APIClient(baseURL: url, token: nil).post("auth/register", body)
         await start(url: url, response: response)
     }
@@ -78,6 +74,7 @@ final class AppSession {
         Keychain.write(response.token, for: Self.tokenKey)
         serverURL = url
         token = response.token
+        passwordChangeRequired = response.user.mustChangePassword
         await refreshMe()
         await PushManager.shared.registerIfAllowed(session: self)
     }
@@ -95,14 +92,34 @@ final class AppSession {
         Keychain.delete(Self.tokenKey)
         token = nil
         me = nil
+        passwordChangeRequired = false
+        loginPassword = nil
     }
 
     // MARK: Profile
 
     func refreshMe() async {
         await run { api in
-            self.me = try await api.get("me")
+            let me: MeResponse = try await api.get("me")
+            self.me = me
+            passwordChangeRequired = me.user.mustChangePassword
         }
+    }
+
+    /// Changes the password. The other devices of this account get logged out.
+    /// Returns false (with the error shown) when it failed.
+    @discardableResult
+    func changePassword(current: String, new: String) async -> Bool {
+        let changed = await run { api in
+            let _: NoContent = try await api.post(
+                "me/password", ["currentPassword": .string(current), "newPassword": .string(new)])
+        }
+        if changed {
+            passwordChangeRequired = false
+            loginPassword = nil
+            await refreshMe()
+        }
+        return changed
     }
 
     func member(id: String) -> User? {
@@ -127,6 +144,11 @@ final class AppSession {
             return false
         } catch let error as APIError {
             if error == .unauthorized { clearLogin() }
+            if case .server(_, "password_change_required", _) = error {
+                // Not an error to show: the root view switches to the password screen.
+                passwordChangeRequired = true
+                return false
+            }
             errorMessage = error.localizedDescription
             return false
         } catch {

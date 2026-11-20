@@ -33,7 +33,9 @@ struct RootView: View {
     var body: some View {
         @Bindable var session = session
         Group {
-            if session.isLoggedIn {
+            if session.isLoggedIn && session.passwordChangeRequired {
+                ChoosePasswordView()
+            } else if session.isLoggedIn {
                 MainTabView()
             } else {
                 AuthView()

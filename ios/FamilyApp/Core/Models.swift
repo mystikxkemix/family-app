@@ -6,6 +6,8 @@ struct User: Codable, Identifiable, Hashable, Sendable {
     let id: String
     var username: String
     var displayName: String
+    /// True for the first (admin) account until it picks its own password.
+    var mustChangePassword: Bool
     let createdAt: Date
 }
 

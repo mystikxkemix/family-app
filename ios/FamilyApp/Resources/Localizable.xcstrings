@@ -201,6 +201,16 @@
         }
       }
     },
+    "At least 8 characters, different from the current one.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Au moins 8 caractères, différent de l’actuel."
+          }
+        }
+      }
+    },
     "At least 8 characters. Your other devices will be logged out.": {
       "localizations": {
         "fr": {
@@ -267,6 +277,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Changer le mot de passe"
+          }
+        }
+      }
+    },
+    "Choose your password": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choisissez votre mot de passe"
           }
         }
       }
@@ -501,12 +521,22 @@
         }
       }
     },
-    "First setup": {
+    "First time? Log in with the admin account set on the server, then choose your own password.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Premier compte"
+            "value": "Première fois ? Connectez-vous avec le compte admin défini sur le serveur, puis choisissez votre mot de passe."
+          }
+        }
+      }
+    },
+    "For security, choose your own password before you start.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Par sécurité, choisissez votre propre mot de passe avant de commencer."
           }
         }
       }
@@ -901,16 +931,6 @@
         }
       }
     },
-    "Only for the very first account. The setup code is in the API logs.": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Seulement pour le tout premier compte. Le code d’installation est dans les logs de l’API."
-          }
-        }
-      }
-    },
     "Open iPhone settings": {
       "localizations": {
         "fr": {
@@ -1051,6 +1071,16 @@
         }
       }
     },
+    "Save my password": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enregistrer mon mot de passe"
+          }
+        }
+      }
+    },
     "Search": {
       "localizations": {
         "fr": {
@@ -1107,16 +1137,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Réglages"
-          }
-        }
-      }
-    },
-    "Setup code": {
-      "localizations": {
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Code d’installation"
           }
         }
       }
@@ -1201,6 +1221,16 @@
         }
       }
     },
+    "The new password must be different from the current one.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le nouveau mot de passe doit être différent de l’actuel."
+          }
+        }
+      }
+    },
     "The other person installs the app, chooses Join and types this code.": {
       "localizations": {
         "fr": {
@@ -1247,6 +1277,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Le serveur a envoyé une réponse inattendue."
+          }
+        }
+      }
+    },
+    "The two passwords are not the same.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les deux mots de passe ne sont pas identiques."
           }
         }
       }
