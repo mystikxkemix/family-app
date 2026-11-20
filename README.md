@@ -1,8 +1,8 @@
 # Family app
 
 A private app for a household to share things: grocery and to-do lists, a
-watchlist of movies and shows, and upcoming events. Each change sends a push
-notification to the other members.
+watchlist of movies and shows, places to try, and upcoming events. Each change
+sends a push notification to the other members.
 
 - `api/`: the API, in Go, with MongoDB. Published as a Docker image.
 - `ios/`: the iPhone app, in SwiftUI. English and French.
@@ -13,7 +13,9 @@ notification to the other members.
 |---|---|
 | Lists | Shared lists (groceries, to-do, other). Add items fast, tap to check, clear checked items. |
 | Watchlist | Movies and shows, with status (to watch, watching, watched) and who wants to watch. "Pick for us" chooses a title at random, titles that everyone wants first. |
-| Events | Upcoming events grouped by day, with time, place and notes. |
+| Media tools | With Radarr/Sonarr: search a title to fill its poster, and send it to download. With Prowlarr: interactive search and manual grab. All optional. |
+| Places | Restaurants, bars, activities to try. Who wants to go, "tried" with a 1-5 rating, open in Maps. |
+| Events | Upcoming events grouped by day, with time, place and notes. "Add to my calendar" puts one in the iPhone calendar. |
 | Household | Invite a person with a one-time code. Rename the household. |
 | Push | A notification when someone else adds a list, an item, a title or an event. Ten groceries added in a row give one notification, not ten. |
 
@@ -37,7 +39,15 @@ Or use the image `ghcr.io/mystikxkemix/family-api`, built by CI on each push to
 | `MONGODB_DB` | `family-app` | Database name. |
 | `SESSION_TTL_DAYS` | `180` | A login ends after this many days without use. |
 | `CLIENT_IP_HEADER` | empty | Header with the real client IP when behind a proxy (`X-Real-IP`, `CF-Connecting-IP`, `X-Forwarded-For`). Only set it if the proxy always writes this header. |
-| `APNS_CONFIG_FILE` | empty | APNs config file. Empty means no push. |
+| `APNS_CONFIG_FILE` | empty | APNs config file. Empty, or a missing file, means no push. |
+| `RADARR_URL`, `RADARR_API_KEY` | empty | Radarr, for movies. Off when empty. |
+| `RADARR_QUALITY_PROFILE_ID`, `RADARR_ROOT_FOLDER` | first one | Where Radarr adds movies. |
+| `SONARR_URL`, `SONARR_API_KEY` | empty | Sonarr (v4), for shows. Off when empty. |
+| `SONARR_QUALITY_PROFILE_ID`, `SONARR_ROOT_FOLDER` | first one | Where Sonarr adds shows. |
+| `PROWLARR_URL`, `PROWLARR_API_KEY` | empty | Prowlarr, for the interactive search. Off when empty. |
+
+The API keys of Radarr, Sonarr and Prowlarr stay on the server: the app never
+sees them. Any member of the household can start a download.
 
 ### First account
 
@@ -120,9 +130,9 @@ English and French, in `ios/FamilyApp/Resources/Localizable.xcstrings`. The
 push texts are translated by the app too: the API sends a key (`push.*`), and
 the phone shows the text in its own language.
 
-## Roadmap
+## ZimaOS
 
-- Sonarr and Radarr: send a title of the watchlist to download, straight from
-  the app (the watchlist already keeps TMDB/TVDB ids for this).
-- Prowlarr: interactive search and manual grab.
-- Add an event to the iPhone calendar.
+The app store entry is in
+[mystikxkemix/zimaos-appstore](https://github.com/mystikxkemix/zimaos-appstore)
+(`Apps/family-api`). It uses the MongoDB of the ZimaOS host and the APNs folder
+`/DATA/AppData/family-api/apns`.
