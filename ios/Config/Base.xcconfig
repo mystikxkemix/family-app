@@ -1,0 +1,15 @@
+// Shared build config. Referenced from project.yml.
+
+// Placeholder values, used by simulator builds and CI. A real device build
+// overrides them with a signing profile (see Config/Signing/README.md).
+APP_BUNDLE_ID = io.github.mystikxkemix.family
+DEVELOPMENT_TEAM =
+
+// "development" for builds installed from Xcode or the install script,
+// "production" for TestFlight / App Store / ad hoc builds. It must match the
+// provisioning profile, and tells the API which APNs server to use.
+APS_ENVIRONMENT = development
+
+// Optional local override for builds from the Xcode UI, not committed.
+// The "?" makes the include optional: a missing file is not an error.
+#include? "Local.xcconfig"

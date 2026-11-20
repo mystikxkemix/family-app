@@ -1,0 +1,9 @@
+// Copy this file to Config/Signing/<name>.xcconfig (for example me.xcconfig)
+// and fill it in. Files in this folder are gitignored, except this example.
+//
+// Each Apple team needs its own bundle identifier: an App ID belongs to one
+// team only. The API needs the same bundle identifier in its APNs config.
+
+DEVELOPMENT_TEAM = ABCDE12345
+APP_BUNDLE_ID = com.example.family
+APS_ENVIRONMENT = development
