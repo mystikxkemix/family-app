@@ -6,6 +6,7 @@ struct EventsView: View {
     @State private var events: [FamilyEvent] = []
     @State private var hasLoaded = false
     @State private var editing: EventEditor.Target?
+    @State private var calendarEvent: FamilyEvent?
 
     /// Events grouped by the day they start, soonest first.
     private var days: [(day: Date, events: [FamilyEvent])] {
@@ -27,6 +28,13 @@ struct EventsView: View {
                                 .onTapGesture { editing = .edit(event) }
                                 .swipeActions {
                                     Button("Delete", systemImage: "trash", role: .destructive) { delete(event) }
+                                }
+                                .swipeActions(edge: .leading) {
+                                    Button("Add to my calendar", systemImage: "calendar.badge.plus") { calendarEvent = event }
+                                        .tint(.blue)
+                                }
+                                .contextMenu {
+                                    Button("Add to my calendar", systemImage: "calendar.badge.plus") { calendarEvent = event }
                                 }
                         }
                     } header: {
@@ -52,6 +60,10 @@ struct EventsView: View {
             }
             .sheet(item: $editing) { target in
                 EventEditor(target: target) { await load() }
+            }
+            .sheet(item: $calendarEvent) { event in
+                AddToCalendarView(event: event)
+                    .ignoresSafeArea()
             }
             .refreshable { await load() }
             .task { await load() }

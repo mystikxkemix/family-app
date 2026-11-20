@@ -21,6 +21,20 @@ struct MeResponse: Codable, Sendable {
     var members: [User]
     /// False when the server has no APNs key at all.
     var pushEnabled: Bool
+    /// The media tools the server can use.
+    var integrations: Integrations
+}
+
+/// Which optional media tools the server has (Radarr, Sonarr, Prowlarr).
+struct Integrations: Codable, Hashable, Sendable {
+    var radarr: Bool
+    var sonarr: Bool
+    var prowlarr: Bool
+
+    /// Radarr for movies, Sonarr for shows.
+    func library(for kind: MediaKind) -> Bool {
+        kind == .movie ? radarr : sonarr
+    }
 }
 
 struct AuthResponse: Codable, Sendable {
@@ -144,6 +158,102 @@ struct Media: Codable, Identifiable, Hashable, Sendable {
     var externalIds: ExternalIDs
     let addedBy: String
     var watchedAt: Date?
+    /// When someone sent it to Radarr or Sonarr.
+    var downloadRequestedAt: Date?
+    let createdAt: Date
+    var updatedAt: Date
+}
+
+/// A movie or a show found by Radarr or Sonarr.
+struct MediaSearchResult: Codable, Hashable, Identifiable, Sendable {
+    var kind: MediaKind
+    var title: String
+    var year: Int?
+    var overview: String?
+    var posterUrl: String?
+    var externalIds: ExternalIDs
+    var inLibrary: Bool
+
+    var id: String { "\(kind.rawValue)-\(externalIds.tmdb ?? 0)-\(externalIds.tvdb ?? 0)-\(title)" }
+}
+
+/// Answer of POST watchlist/{id}/download.
+struct DownloadResponse: Codable, Sendable {
+    let media: Media
+    let alreadyInLibrary: Bool
+}
+
+/// One result of a Prowlarr interactive search.
+struct Release: Codable, Hashable, Identifiable, Sendable {
+    let guid: String
+    let indexerId: Int
+    let indexer: String?
+    let title: String
+    let size: Int64
+    let seeders: Int?
+    let leechers: Int?
+    let `protocol`: String
+    let publishDate: Date
+
+    var id: String { "\(indexerId)-\(guid)" }
+}
+
+// MARK: - Places
+
+enum PlaceCategory: String, Codable, CaseIterable, Identifiable, Sendable {
+    case restaurant, bar, cafe, activity, shop, other
+
+    var id: String { rawValue }
+
+    var title: LocalizedStringResource {
+        switch self {
+        case .restaurant: "Restaurant"
+        case .bar: "Bar"
+        case .cafe: "Café"
+        case .activity: "Activity"
+        case .shop: "Shop"
+        case .other: "Other"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .restaurant: "fork.knife"
+        case .bar: "wineglass"
+        case .cafe: "cup.and.saucer"
+        case .activity: "figure.walk"
+        case .shop: "bag"
+        case .other: "mappin"
+        }
+    }
+}
+
+enum PlaceStatus: String, Codable, CaseIterable, Identifiable, Sendable {
+    case toTry, tried
+
+    var id: String { rawValue }
+
+    var title: LocalizedStringResource {
+        switch self {
+        case .toTry: "To try"
+        case .tried: "Tried"
+        }
+    }
+}
+
+struct Place: Codable, Identifiable, Hashable, Sendable {
+    let id: String
+    var name: String
+    var category: PlaceCategory
+    var address: String
+    var url: String
+    var note: String
+    var status: PlaceStatus
+    /// 1 to 5 once tried, 0 when not rated.
+    var rating: Int
+    var interestedUserIds: [String]
+    let addedBy: String
+    var triedAt: Date?
     let createdAt: Date
     var updatedAt: Date
 }

@@ -56,6 +56,7 @@ struct MainTabView: View {
         TabView {
             Tab("Lists", systemImage: "checklist") { ListsView() }
             Tab("Watchlist", systemImage: "popcorn") { WatchlistView() }
+            Tab("Places", systemImage: "fork.knife") { PlacesView() }
             Tab("Events", systemImage: "calendar") { EventsView() }
             Tab("Settings", systemImage: "gearshape") { SettingsView() }
         }

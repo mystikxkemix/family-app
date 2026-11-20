@@ -51,6 +51,16 @@
         }
       }
     },
+    "Activity": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activité"
+          }
+        }
+      }
+    },
     "Add": {
       "localizations": {
         "fr": {
@@ -81,12 +91,32 @@
         }
       }
     },
+    "Add a restaurant, a bar or an activity you want to try together.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajoutez un restaurant, un bar ou une activité à tester ensemble."
+          }
+        }
+      }
+    },
     "Add an item": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Ajouter un article"
+          }
+        }
+      }
+    },
+    "Add to my calendar": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter à mon calendrier"
           }
         }
       }
@@ -111,6 +141,16 @@
         }
       }
     },
+    "Address or area": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adresse ou quartier"
+          }
+        }
+      }
+    },
     "All day": {
       "localizations": {
         "fr": {
@@ -127,6 +167,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tout est fait"
+          }
+        }
+      }
+    },
+    "Already in the library": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Déjà dans la bibliothèque"
           }
         }
       }
@@ -161,6 +211,26 @@
         }
       }
     },
+    "Bar": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bar"
+          }
+        }
+      }
+    },
+    "Café": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Café"
+          }
+        }
+      }
+    },
     "Cancel": {
       "localizations": {
         "fr": {
@@ -177,6 +247,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Impossible de joindre le serveur : %@"
+          }
+        }
+      }
+    },
+    "Category": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Catégorie"
           }
         }
       }
@@ -251,6 +331,66 @@
         }
       }
     },
+    "Download": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Télécharger"
+          }
+        }
+      }
+    },
+    "Download already requested.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Téléchargement déjà demandé."
+          }
+        }
+      }
+    },
+    "Download requested": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Téléchargement demandé"
+          }
+        }
+      }
+    },
+    "Download this release?": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Télécharger cette version ?"
+          }
+        }
+      }
+    },
+    "Download with Radarr": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Télécharger avec Radarr"
+          }
+        }
+      }
+    },
+    "Download with Sonarr": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Télécharger avec Sonarr"
+          }
+        }
+      }
+    },
     "Edit": {
       "localizations": {
         "fr": {
@@ -287,6 +427,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Modifier la liste"
+          }
+        }
+      }
+    },
+    "Edit place": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modifier le lieu"
           }
         }
       }
@@ -341,12 +491,12 @@
         }
       }
     },
-    "Everyone wants to watch it": {
+    "Everyone wants it": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tout le monde veut le voir"
+            "value": "Tout le monde en a envie"
           }
         }
       }
@@ -387,6 +537,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nom du foyer"
+          }
+        }
+      }
+    },
+    "I want to go": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Je veux y aller"
           }
         }
       }
@@ -601,12 +761,32 @@
         }
       }
     },
+    "New place": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nouveau lieu"
+          }
+        }
+      }
+    },
     "No lists yet": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Aucune liste"
+          }
+        }
+      }
+    },
+    "No places yet": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun lieu"
           }
         }
       }
@@ -647,6 +827,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Note (qui l’a conseillé, où le voir…)"
+          }
+        }
+      }
+    },
+    "Note (who told us, what to order...)": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Note (qui nous l’a conseillé, quoi commander…)"
           }
         }
       }
@@ -731,6 +921,26 @@
         }
       }
     },
+    "Open in Maps": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir dans Plans"
+          }
+        }
+      }
+    },
+    "Open website": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir le site"
+          }
+        }
+      }
+    },
     "Other": {
       "localizations": {
         "fr": {
@@ -747,6 +957,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mot de passe"
+          }
+        }
+      }
+    },
+    "Pick a result to fill the title and the poster, or type them yourself below.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choisissez un résultat pour remplir le titre et l’affiche, ou tapez-les vous-même ci-dessous."
           }
         }
       }
@@ -771,6 +991,36 @@
         }
       }
     },
+    "Places": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lieux"
+          }
+        }
+      }
+    },
+    "Rate": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noter"
+          }
+        }
+      }
+    },
+    "Releases": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versions"
+          }
+        }
+      }
+    },
     "Remove checked items": {
       "localizations": {
         "fr": {
@@ -781,12 +1031,62 @@
         }
       }
     },
+    "Restaurant": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restaurant"
+          }
+        }
+      }
+    },
     "Save": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Enregistrer"
+          }
+        }
+      }
+    },
+    "Search": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rechercher"
+          }
+        }
+      }
+    },
+    "Search a title": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rechercher un titre"
+          }
+        }
+      }
+    },
+    "Search releases (Prowlarr)": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chercher des versions (Prowlarr)"
+          }
+        }
+      }
+    },
+    "Sent. The download will start soon.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Envoyé. Le téléchargement va bientôt commencer."
           }
         }
       }
@@ -827,6 +1127,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Partager l’invitation"
+          }
+        }
+      }
+    },
+    "Shop": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Boutique"
           }
         }
       }
@@ -961,6 +1271,16 @@
         }
       }
     },
+    "This title is already in the library.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce titre est déjà dans la bibliothèque."
+          }
+        }
+      }
+    },
     "This username is already taken.": {
       "localizations": {
         "fr": {
@@ -977,6 +1297,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Titre"
+          }
+        }
+      }
+    },
+    "To try": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "À tester"
           }
         }
       }
@@ -1017,6 +1347,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Trop de tentatives. Attendez une minute et réessayez."
+          }
+        }
+      }
+    },
+    "Tried": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Testé"
           }
         }
       }
@@ -1097,6 +1437,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "À regarder"
+          }
+        }
+      }
+    },
+    "Website (optional)": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Site web (facultatif)"
           }
         }
       }
@@ -1339,6 +1689,42 @@
           "stringUnit": {
             "state": "translated",
             "value": "À regarder"
+          }
+        }
+      }
+    },
+    "push.place.body": {
+      "comment": "Push notification text, chosen by the API (loc-key).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ added a place: %2$@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ a ajouté un lieu : %2$@"
+          }
+        }
+      }
+    },
+    "push.place.title": {
+      "comment": "Push notification text, chosen by the API (loc-key).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Places to try"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lieux à tester"
           }
         }
       }

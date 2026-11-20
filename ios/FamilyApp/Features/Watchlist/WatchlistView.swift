@@ -135,16 +135,36 @@ struct WatchlistView: View {
     }
 }
 
+/// A small poster, or the movie/show symbol when there is none.
+struct PosterView: View {
+    let url: String?
+    let kind: MediaKind
+
+    var body: some View {
+        Group {
+            if let url, let imageURL = URL(string: url) {
+                AsyncImage(url: imageURL) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    Color.secondary.opacity(0.15)
+                }
+            } else {
+                Image(systemName: kind.symbol)
+                    .font(.title2)
+                    .foregroundStyle(.tint)
+            }
+        }
+        .frame(width: 44, height: 66)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+}
+
 private struct MediaRow: View {
     let media: Media
-    @Environment(AppSession.self) private var session
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: media.kind.symbol)
-                .font(.title2)
-                .foregroundStyle(.tint)
-                .frame(width: 32)
+            PosterView(url: media.posterUrl, kind: media.kind)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(media.title).font(.headline)
@@ -158,29 +178,20 @@ private struct MediaRow: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
-                interestLine
+                InterestLine(userIds: media.interestedUserIds)
+                if media.downloadRequestedAt != nil {
+                    Label("Download requested", systemImage: "arrow.down.circle")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                }
             }
         }
-        .padding(.vertical, 4)
-    }
-
-    @ViewBuilder
-    private var interestLine: some View {
-        let members = session.me?.members ?? []
-        let names = media.interestedUserIds.map { session.memberName(id: $0) }
-        if members.count > 1 && media.interestedUserIds.count >= members.count {
-            Label("Everyone wants to watch it", systemImage: "heart.fill")
-                .font(.caption)
-                .foregroundStyle(.pink)
-        } else if !names.isEmpty {
-            Label(names.formatted(.list(type: .and)), systemImage: "heart")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
+        .padding(.vertical, 2)
     }
 }
 
-/// Adds or edits a movie or a show.
+/// Adds or edits a movie or a show. When Radarr/Sonarr is set up on the
+/// server, a search fills the title, year, poster and ids.
 struct MediaEditor: View {
     enum Target: Identifiable {
         case create
@@ -203,7 +214,17 @@ struct MediaEditor: View {
     @State private var title = ""
     @State private var year = ""
     @State private var note = ""
+    @State private var posterUrl: String?
+    @State private var overview: String?
+    @State private var externalIds = ExternalIDs()
+    @State private var searchText = ""
+    @State private var results: [MediaSearchResult] = []
+    @State private var isSearching = false
     @State private var isSaving = false
+    @State private var downloadMessage: String?
+
+    private var integrations: Integrations? { session.me?.integrations }
+    private var canSearch: Bool { integrations?.library(for: kind) ?? false }
 
     var body: some View {
         NavigationStack {
@@ -214,10 +235,29 @@ struct MediaEditor: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                TextField("Title", text: $title)
-                TextField("Year (optional)", text: $year)
-                    .keyboardType(.numberPad)
-                TextField("Note (who recommended it, where to watch...)", text: $note, axis: .vertical)
+                .disabled(!isNew)
+
+                if isNew && canSearch {
+                    searchSection
+                }
+
+                Section {
+                    HStack(alignment: .top) {
+                        if posterUrl != nil {
+                            PosterView(url: posterUrl, kind: kind)
+                        }
+                        VStack {
+                            TextField("Title", text: $title)
+                            TextField("Year (optional)", text: $year)
+                                .keyboardType(.numberPad)
+                        }
+                    }
+                    TextField("Note (who recommended it, where to watch...)", text: $note, axis: .vertical)
+                }
+
+                if case .edit(let media) = target {
+                    toolsSection(media)
+                }
             }
             .navigationTitle(isNew ? "Add to watchlist" : "Edit")
             .navigationBarTitleDisplayMode(.inline)
@@ -230,16 +270,79 @@ struct MediaEditor: View {
                         .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
                 }
             }
-            .onAppear {
-                if case .edit(let media) = target {
-                    kind = media.kind
-                    title = media.title
-                    year = media.year.map(String.init) ?? ""
-                    note = media.note
+            .alert(
+                "Download",
+                isPresented: Binding(get: { downloadMessage != nil }, set: { if !$0 { downloadMessage = nil } }),
+                actions: { Button("OK", role: .cancel) {} },
+                message: { Text(downloadMessage ?? "") }
+            )
+            .onAppear(perform: fill)
+        }
+        .presentationDetents([.large])
+    }
+
+    private var searchSection: some View {
+        Section {
+            HStack {
+                TextField("Search a title", text: $searchText)
+                    .submitLabel(.search)
+                    .onSubmit(search)
+                if isSearching {
+                    ProgressView()
+                } else {
+                    Button("Search", systemImage: "magnifyingglass", action: search)
+                        .labelStyle(.iconOnly)
+                        .disabled(searchText.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+            ForEach(results) { result in
+                Button {
+                    choose(result)
+                } label: {
+                    HStack(spacing: 12) {
+                        PosterView(url: result.posterUrl, kind: result.kind)
+                        VStack(alignment: .leading) {
+                            Text(result.title).foregroundStyle(.primary)
+                            if let year = result.year, year > 0 {
+                                Text(String(year)).font(.caption).foregroundStyle(.secondary)
+                            }
+                            if result.inLibrary {
+                                Text("Already in the library").font(.caption).foregroundStyle(.green)
+                            }
+                        }
+                    }
+                }
+            }
+        } footer: {
+            Text("Pick a result to fill the title and the poster, or type them yourself below.")
+        }
+    }
+
+    @ViewBuilder
+    private func toolsSection(_ media: Media) -> some View {
+        let library = integrations?.library(for: media.kind) ?? false
+        let prowlarr = integrations?.prowlarr ?? false
+        if library || prowlarr {
+            Section {
+                if library {
+                    Button(media.kind == .movie ? LocalizedStringKey("Download with Radarr") : LocalizedStringKey("Download with Sonarr"),
+                           systemImage: "arrow.down.circle") {
+                        download(media)
+                    }
+                }
+                if prowlarr {
+                    NavigationLink {
+                        ReleasesView(kind: media.kind, initialQuery: releaseQuery(media))
+                    } label: {
+                        Label("Search releases (Prowlarr)", systemImage: "magnifyingglass")
+                    }
+                }
+            } footer: {
+                if media.downloadRequestedAt != nil {
+                    Text("Download already requested.")
                 }
             }
         }
-        .presentationDetents([.medium, .large])
     }
 
     private var isNew: Bool {
@@ -247,14 +350,74 @@ struct MediaEditor: View {
         return false
     }
 
+    private func fill() {
+        guard case .edit(let media) = target else { return }
+        kind = media.kind
+        title = media.title
+        year = media.year.map(String.init) ?? ""
+        note = media.note
+        posterUrl = media.posterUrl
+        overview = media.overview
+        externalIds = media.externalIds
+    }
+
+    private func search() {
+        let term = searchText.trimmingCharacters(in: .whitespaces)
+        guard !term.isEmpty else { return }
+        isSearching = true
+        Task {
+            await session.run { api in
+                results = try await api.get(
+                    "search/media",
+                    query: [URLQueryItem(name: "kind", value: kind.rawValue), URLQueryItem(name: "q", value: term)])
+            }
+            isSearching = false
+        }
+    }
+
+    private func choose(_ result: MediaSearchResult) {
+        title = result.title
+        year = result.year.map(String.init) ?? ""
+        posterUrl = result.posterUrl
+        overview = result.overview
+        externalIds = result.externalIds
+        results = []
+    }
+
+    private func releaseQuery(_ media: Media) -> String {
+        if let year = media.year, year > 0, media.kind == .movie {
+            return "\(media.title) \(year)"
+        }
+        return media.title
+    }
+
+    private func download(_ media: Media) {
+        Task {
+            await session.run { api in
+                let response: DownloadResponse = try await api.post("watchlist/\(media.id)/download")
+                downloadMessage = response.alreadyInLibrary
+                    ? String(localized: "This title is already in the library.")
+                    : String(localized: "Sent. The download will start soon.")
+            }
+            await onSave()
+        }
+    }
+
     private func save() {
         isSaving = true
-        let body: JSONBody = [
-            "kind": .string(kind.rawValue),
+        var ids: [String: JSONValue] = [:]
+        if let tmdb = externalIds.tmdb { ids["tmdb"] = .int(tmdb) }
+        if let tvdb = externalIds.tvdb { ids["tvdb"] = .int(tvdb) }
+        if let imdb = externalIds.imdb { ids["imdb"] = .string(imdb) }
+        var body: JSONBody = [
             "title": .string(title),
             "year": .int(Int(year) ?? 0),
             "note": .string(note),
+            "posterUrl": .string(posterUrl ?? ""),
+            "overview": .string(overview ?? ""),
+            "externalIds": .object(ids),
         ]
+        if isNew { body["kind"] = .string(kind.rawValue) }
         Task {
             let saved = await session.run { api in
                 switch target {
@@ -270,5 +433,116 @@ struct MediaEditor: View {
                 dismiss()
             }
         }
+    }
+}
+
+/// Prowlarr interactive search: pick a release and send it to the download client.
+struct ReleasesView: View {
+    let kind: MediaKind
+    let initialQuery: String
+
+    @Environment(AppSession.self) private var session
+    @State private var query = ""
+    @State private var releases: [Release] = []
+    @State private var isSearching = false
+    @State private var hasSearched = false
+    @State private var selected: Release?
+    @State private var grabbedMessage: String?
+
+    var body: some View {
+        List {
+            Section {
+                HStack {
+                    TextField("Search", text: $query)
+                        .submitLabel(.search)
+                        .onSubmit { Task { await search() } }
+                    if isSearching { ProgressView() }
+                }
+            }
+            ForEach(releases) { release in
+                Button { selected = release } label: { ReleaseRow(release: release) }
+                    .foregroundStyle(.primary)
+            }
+        }
+        .navigationTitle("Releases")
+        .overlay {
+            if hasSearched && !isSearching && releases.isEmpty {
+                ContentUnavailableView.search(text: query)
+            }
+        }
+        .confirmationDialog(
+            "Download this release?",
+            isPresented: Binding(get: { selected != nil }, set: { if !$0 { selected = nil } }),
+            titleVisibility: .visible,
+            presenting: selected
+        ) { release in
+            Button("Download") { grab(release) }
+        } message: { release in
+            Text(release.title)
+        }
+        .alert(
+            "Download",
+            isPresented: Binding(get: { grabbedMessage != nil }, set: { if !$0 { grabbedMessage = nil } }),
+            actions: { Button("OK", role: .cancel) {} },
+            message: { Text(grabbedMessage ?? "") }
+        )
+        .task {
+            if query.isEmpty {
+                query = initialQuery
+                await search()
+            }
+        }
+    }
+
+    private func search() async {
+        let term = query.trimmingCharacters(in: .whitespaces)
+        guard !term.isEmpty else { return }
+        isSearching = true
+        await session.run { api in
+            let found: [Release] = try await api.get(
+                "releases",
+                query: [URLQueryItem(name: "kind", value: kind.rawValue), URLQueryItem(name: "q", value: term)])
+            // Most seeded first; usenet releases (no seeders) after.
+            releases = found.sorted { ($0.seeders ?? -1) > ($1.seeders ?? -1) }
+        }
+        isSearching = false
+        hasSearched = true
+    }
+
+    private func grab(_ release: Release) {
+        Task {
+            let sent = await session.run { api in
+                let _: NoContent = try await api.post(
+                    "releases/grab", ["guid": .string(release.guid), "indexerId": .int(release.indexerId)])
+            }
+            if sent {
+                grabbedMessage = String(localized: "Sent. The download will start soon.")
+            }
+        }
+    }
+}
+
+private struct ReleaseRow: View {
+    let release: Release
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(release.title)
+                .font(.subheadline)
+                .lineLimit(3)
+            HStack(spacing: 12) {
+                Text(release.size.formatted(.byteCount(style: .file)))
+                if let seeders = release.seeders {
+                    Label { Text(seeders, format: .number) } icon: { Image(systemName: "arrow.up.circle") }
+                }
+                Text(release.publishDate, format: .relative(presentation: .named))
+                if let indexer = release.indexer {
+                    Text(indexer).lineLimit(1)
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 2)
     }
 }
