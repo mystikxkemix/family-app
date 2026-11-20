@@ -23,8 +23,29 @@ type Config struct {
 	// X-Forwarded-For). Empty means "use the TCP peer address". Only set it when a
 	// proxy always overwrites this header, or clients can fake their IP.
 	ClientIPHeader string
-	// APNSConfigFile is the path of the APNs JSON config. Empty disables push.
+	// APNSConfigFile is the path of the APNs JSON config. Empty, or a missing
+	// file, disables push.
 	APNSConfigFile string
+	// Radarr, Sonarr and Prowlarr are optional media tools. Each one is off
+	// when its URL or API key is empty.
+	Radarr   ArrConfig
+	Sonarr   ArrConfig
+	Prowlarr ArrConfig
+}
+
+// ArrConfig is the address and key of one *arr tool.
+type ArrConfig struct {
+	URL    string
+	APIKey string
+	// QualityProfileID and RootFolder choose where Radarr/Sonarr add a title.
+	// Zero/empty means "the first one configured in the tool".
+	QualityProfileID int
+	RootFolder       string
+}
+
+// Enabled reports whether the tool has an address and a key.
+func (c ArrConfig) Enabled() bool {
+	return c.URL != "" && c.APIKey != ""
 }
 
 // FromEnv builds the config from the environment, with defaults for local use.
@@ -36,13 +57,42 @@ func FromEnv() (Config, error) {
 	if ttlDays < 1 {
 		return Config{}, fmt.Errorf("SESSION_TTL_DAYS must be at least 1")
 	}
+	radarr, err := arrEnv("RADARR")
+	if err != nil {
+		return Config{}, err
+	}
+	sonarr, err := arrEnv("SONARR")
+	if err != nil {
+		return Config{}, err
+	}
+	prowlarr, err := arrEnv("PROWLARR")
+	if err != nil {
+		return Config{}, err
+	}
 	return Config{
+		Radarr:         radarr,
+		Sonarr:         sonarr,
+		Prowlarr:       prowlarr,
 		Port:           stringEnv("PORT", "8080"),
 		MongoURI:       stringEnv("MONGODB_URI", "mongodb://localhost:27017"),
 		MongoDB:        stringEnv("MONGODB_DB", "family-app"),
 		SessionTTL:     time.Duration(ttlDays) * 24 * time.Hour,
 		ClientIPHeader: os.Getenv("CLIENT_IP_HEADER"),
 		APNSConfigFile: os.Getenv("APNS_CONFIG_FILE"),
+	}, nil
+}
+
+// arrEnv reads <PREFIX>_URL, _API_KEY, _QUALITY_PROFILE_ID and _ROOT_FOLDER.
+func arrEnv(prefix string) (ArrConfig, error) {
+	profile, err := intEnv(prefix+"_QUALITY_PROFILE_ID", 0)
+	if err != nil {
+		return ArrConfig{}, err
+	}
+	return ArrConfig{
+		URL:              os.Getenv(prefix + "_URL"),
+		APIKey:           os.Getenv(prefix + "_API_KEY"),
+		QualityProfileID: profile,
+		RootFolder:       os.Getenv(prefix + "_ROOT_FOLDER"),
 	}, nil
 }
 

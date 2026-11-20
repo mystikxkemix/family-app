@@ -178,13 +178,7 @@ func (s *Server) updateMedia(w http.ResponseWriter, r *http.Request, caller prin
 			update["$unset"] = bson.M{"watchedAt": ""}
 		}
 	}
-	if request.Interested != nil {
-		if *request.Interested {
-			update["$addToSet"] = bson.M{"interestedUserIds": caller.User.ID}
-		} else {
-			update["$pull"] = bson.M{"interestedUserIds": caller.User.ID}
-		}
-	}
+	addInterest(update, request.Interested, caller.User.ID)
 	media, err := s.store.UpdateMedia(r.Context(), caller.HouseholdID, mediaID, update)
 	if err != nil {
 		return err

@@ -138,8 +138,10 @@ type Media struct {
 	ExternalIDs       ExternalIDs     `bson:"externalIds" json:"externalIds"`
 	AddedBy           bson.ObjectID   `bson:"addedBy" json:"addedBy"`
 	WatchedAt         *time.Time      `bson:"watchedAt,omitempty" json:"watchedAt,omitempty"`
-	CreatedAt         time.Time       `bson:"createdAt" json:"createdAt"`
-	UpdatedAt         time.Time       `bson:"updatedAt" json:"updatedAt"`
+	// DownloadRequestedAt is when someone sent it to Radarr or Sonarr.
+	DownloadRequestedAt *time.Time `bson:"downloadRequestedAt,omitempty" json:"downloadRequestedAt,omitempty"`
+	CreatedAt           time.Time  `bson:"createdAt" json:"createdAt"`
+	UpdatedAt           time.Time  `bson:"updatedAt" json:"updatedAt"`
 }
 
 // Event is a shared calendar entry.
@@ -155,4 +157,45 @@ type Event struct {
 	CreatedBy   bson.ObjectID `bson:"createdBy" json:"createdBy"`
 	CreatedAt   time.Time     `bson:"createdAt" json:"createdAt"`
 	UpdatedAt   time.Time     `bson:"updatedAt" json:"updatedAt"`
+}
+
+// Place categories.
+const (
+	PlaceCategoryRestaurant = "restaurant"
+	PlaceCategoryBar        = "bar"
+	PlaceCategoryCafe       = "cafe"
+	PlaceCategoryActivity   = "activity"
+	PlaceCategoryShop       = "shop"
+	PlaceCategoryOther      = "other"
+)
+
+// PlaceCategories lists the allowed categories, for validation.
+var PlaceCategories = []string{
+	PlaceCategoryRestaurant, PlaceCategoryBar, PlaceCategoryCafe,
+	PlaceCategoryActivity, PlaceCategoryShop, PlaceCategoryOther,
+}
+
+// Place statuses.
+const (
+	PlaceStatusToTry = "toTry"
+	PlaceStatusTried = "tried"
+)
+
+// Place is a restaurant, bar or activity the household wants to try.
+type Place struct {
+	ID          bson.ObjectID `bson:"_id" json:"id"`
+	HouseholdID bson.ObjectID `bson:"householdId" json:"-"`
+	Name        string        `bson:"name" json:"name"`
+	Category    string        `bson:"category" json:"category"`
+	Address     string        `bson:"address" json:"address"`
+	URL         string        `bson:"url" json:"url"`
+	Note        string        `bson:"note" json:"note"`
+	Status      string        `bson:"status" json:"status"`
+	// Rating is 1 to 5 once tried, 0 when not rated.
+	Rating            int             `bson:"rating" json:"rating"`
+	InterestedUserIDs []bson.ObjectID `bson:"interestedUserIds" json:"interestedUserIds"`
+	AddedBy           bson.ObjectID   `bson:"addedBy" json:"addedBy"`
+	TriedAt           *time.Time      `bson:"triedAt,omitempty" json:"triedAt,omitempty"`
+	CreatedAt         time.Time       `bson:"createdAt" json:"createdAt"`
+	UpdatedAt         time.Time       `bson:"updatedAt" json:"updatedAt"`
 }

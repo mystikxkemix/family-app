@@ -12,7 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"familyapp/internal/arr"
 	"familyapp/internal/auth"
+	"familyapp/internal/config"
 	"familyapp/internal/push"
 	"familyapp/internal/store"
 
@@ -26,6 +28,10 @@ import (
 //
 // Each run uses its own database and drops it at the end.
 func newTestServer(t *testing.T) (*Server, *httptest.Server) {
+	return newTestServerWith(t, Options{SessionTTL: time.Hour})
+}
+
+func newTestServerWith(t *testing.T, options Options) (*Server, *httptest.Server) {
 	t.Helper()
 	uri := os.Getenv("TEST_MONGODB_URI")
 	if uri == "" {
@@ -41,7 +47,7 @@ func newTestServer(t *testing.T) (*Server, *httptest.Server) {
 		_ = st.Close(ctx)
 	})
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	server, err := New(ctx, st, push.NewNotifier(st, nil, log), log, Options{SessionTTL: time.Hour})
+	server, err := New(ctx, st, push.NewNotifier(st, nil, log), log, options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,4 +267,118 @@ func TestLoginIsRateLimited(t *testing.T) {
 		anonymous.call("POST", "/api/v1/auth/login", wrong, 401, nil)
 	}
 	anonymous.call("POST", "/api/v1/auth/login", wrong, 429, nil)
+}
+
+// signUp creates the first account and returns its client.
+func signUp(t *testing.T, server *Server, base string) *client {
+	t.Helper()
+	anonymous := &client{t: t, base: base}
+	var answer authResponse
+	anonymous.call("POST", "/api/v1/auth/register", map[string]string{
+		"username": "alex", "password": "password-1", "displayName": "Alex", "setupCode": server.setup.code,
+	}, 201, &answer)
+	return &client{t: t, base: base, token: answer.Token}
+}
+
+func TestPlaces(t *testing.T) {
+	server, httpServer := newTestServer(t)
+	alex := signUp(t, server, httpServer.URL)
+
+	var place store.Place
+	alex.call("POST", "/api/v1/places", map[string]any{"name": "Chez Lulu", "category": "restaurant", "address": "1 rue X", "url": "https://lulu.example"}, 201, &place)
+	if place.Status != store.PlaceStatusToTry || len(place.InterestedUserIDs) != 1 {
+		t.Fatalf("new place defaults: %+v", place)
+	}
+	alex.call("POST", "/api/v1/places", map[string]any{"name": "X", "category": "spa"}, 400, nil)
+	alex.call("POST", "/api/v1/places", map[string]any{"name": "X", "url": "javascript:alert(1)"}, 400, nil)
+
+	var tried store.Place
+	alex.call("PATCH", "/api/v1/places/"+place.ID.Hex(), map[string]any{"status": "tried", "rating": 4, "interested": false}, 200, &tried)
+	if tried.TriedAt == nil || tried.Rating != 4 || len(tried.InterestedUserIDs) != 0 {
+		t.Fatalf("tried update: %+v", tried)
+	}
+	alex.call("PATCH", "/api/v1/places/"+place.ID.Hex(), map[string]any{"rating": 6}, 400, nil)
+
+	var toTry []store.Place
+	alex.call("GET", "/api/v1/places?status=toTry", nil, 200, &toTry)
+	var all []store.Place
+	alex.call("GET", "/api/v1/places", nil, 200, &all)
+	if len(toTry) != 0 || len(all) != 1 {
+		t.Fatalf("filter: toTry=%d all=%d", len(toTry), len(all))
+	}
+	strangerClient(t, server, httpServer.URL).call("DELETE", "/api/v1/places/"+place.ID.Hex(), nil, 404, nil)
+	alex.call("DELETE", "/api/v1/places/"+place.ID.Hex(), nil, 204, nil)
+}
+
+func TestMediaToolsNotConfigured(t *testing.T) {
+	server, httpServer := newTestServer(t)
+	alex := signUp(t, server, httpServer.URL)
+	var me meResponse
+	alex.call("GET", "/api/v1/me", nil, 200, &me)
+	if me.Integrations.Radarr || me.Integrations.Prowlarr {
+		t.Fatalf("no tool is configured: %+v", me.Integrations)
+	}
+	alex.call("GET", "/api/v1/search/media?kind=movie&q=arrival", nil, 503, nil)
+	alex.call("GET", "/api/v1/releases?q=arrival", nil, 503, nil)
+}
+
+func TestMediaTools(t *testing.T) {
+	var posted map[string]any
+	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method + " " + r.URL.Path {
+		case "GET /api/v3/movie/lookup":
+			_, _ = w.Write([]byte(`[{"title":"Arrival","year":2016,"tmdbId":1,"remotePoster":"https://img/p.jpg"}]`))
+		case "GET /api/v3/qualityprofile":
+			_, _ = w.Write([]byte(`[{"id":1}]`))
+		case "GET /api/v3/rootfolder":
+			_, _ = w.Write([]byte(`[{"path":"/movies"}]`))
+		case "POST /api/v3/movie":
+			_ = json.NewDecoder(r.Body).Decode(&posted)
+			w.WriteHeader(http.StatusCreated)
+		case "GET /api/v1/search":
+			_, _ = w.Write([]byte(`[{"guid":"g1","indexerId":2,"title":"Arrival.2016","size":1,"protocol":"torrent","publishDate":"2020-01-02T03:04:05Z"}]`))
+		case "POST /api/v1/search":
+			_, _ = w.Write([]byte(`{}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer fake.Close()
+	cfg := config.ArrConfig{URL: fake.URL, APIKey: "k"}
+	server, httpServer := newTestServerWith(t, Options{SessionTTL: time.Hour, Arr: arr.New(cfg, config.ArrConfig{}, cfg)})
+	alex := signUp(t, server, httpServer.URL)
+
+	var me meResponse
+	alex.call("GET", "/api/v1/me", nil, 200, &me)
+	if !me.Integrations.Radarr || me.Integrations.Sonarr || !me.Integrations.Prowlarr {
+		t.Fatalf("integrations: %+v", me.Integrations)
+	}
+
+	var results []arr.SearchResult
+	alex.call("GET", "/api/v1/search/media?kind=movie&q=arrival", nil, 200, &results)
+	if len(results) != 1 || results[0].ExternalIDs.TMDB != 1 {
+		t.Fatalf("search: %+v", results)
+	}
+	alex.call("GET", "/api/v1/search/media?kind=show&q=x", nil, 503, nil)
+
+	var movie store.Media
+	alex.call("POST", "/api/v1/watchlist", map[string]any{"kind": "movie", "title": "Arrival", "posterUrl": results[0].PosterURL, "externalIds": results[0].ExternalIDs}, 201, &movie)
+	var download struct {
+		Media store.Media `json:"media"`
+	}
+	alex.call("POST", "/api/v1/watchlist/"+movie.ID.Hex()+"/download", nil, 200, &download)
+	if download.Media.DownloadRequestedAt == nil || posted["tmdbId"] != float64(1) {
+		t.Fatalf("download: %+v posted=%v", download.Media, posted)
+	}
+	var noIDs store.Media
+	alex.call("POST", "/api/v1/watchlist", map[string]any{"kind": "movie", "title": "Home video"}, 201, &noIDs)
+	alex.call("POST", "/api/v1/watchlist/"+noIDs.ID.Hex()+"/download", nil, 400, nil)
+
+	var releases []arr.Release
+	alex.call("GET", "/api/v1/releases?kind=movie&q=arrival", nil, 200, &releases)
+	if len(releases) != 1 {
+		t.Fatalf("releases: %+v", releases)
+	}
+	alex.call("POST", "/api/v1/releases/grab", map[string]any{"guid": "g1", "indexerId": 2}, 204, nil)
+	alex.call("POST", "/api/v1/releases/grab", map[string]any{"guid": "", "indexerId": 2}, 400, nil)
 }

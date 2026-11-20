@@ -164,6 +164,44 @@ func (s *Store) DeleteMedia(ctx context.Context, householdID, id bson.ObjectID) 
 	return deleteOne(ctx, s.media, scoped(householdID, id))
 }
 
+// --- Places -------------------------------------------------------------------
+
+// Places returns the places to try, newest first. An empty status returns all.
+func (s *Store) Places(ctx context.Context, householdID bson.ObjectID, status string) ([]Place, error) {
+	filter := bson.M{"householdId": householdID}
+	if status != "" {
+		filter["status"] = status
+	}
+	return findAll[Place](ctx, s.places, filter, options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}}))
+}
+
+// CreatePlace inserts a place and fills its ID and dates.
+func (s *Store) CreatePlace(ctx context.Context, place *Place) error {
+	now := Now()
+	place.ID = bson.NewObjectID()
+	place.CreatedAt = now
+	place.UpdatedAt = now
+	if place.InterestedUserIDs == nil {
+		place.InterestedUserIDs = []bson.ObjectID{}
+	}
+	return insertOne(ctx, s.places, place)
+}
+
+// UpdatePlace applies an update to a place and returns it.
+func (s *Store) UpdatePlace(ctx context.Context, householdID, id bson.ObjectID, update bson.M) (*Place, error) {
+	return updateOne[Place](ctx, s.places, scoped(householdID, id), withUpdatedAt(update))
+}
+
+// DeletePlace deletes a place.
+func (s *Store) DeletePlace(ctx context.Context, householdID, id bson.ObjectID) error {
+	return deleteOne(ctx, s.places, scoped(householdID, id))
+}
+
+// MediaByID returns one watchlist entry of a household.
+func (s *Store) MediaByID(ctx context.Context, householdID, id bson.ObjectID) (*Media, error) {
+	return findOne[Media](ctx, s.media, scoped(householdID, id))
+}
+
 // --- Events -------------------------------------------------------------------
 
 // Events returns the events that end (or start, when they have no end) after

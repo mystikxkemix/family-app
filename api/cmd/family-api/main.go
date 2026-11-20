@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"familyapp/internal/api"
+	"familyapp/internal/arr"
 	"familyapp/internal/config"
 	"familyapp/internal/push"
 	"familyapp/internal/store"
@@ -55,6 +56,7 @@ func run(log *slog.Logger) error {
 		SessionTTL:     cfg.SessionTTL,
 		ClientIPHeader: cfg.ClientIPHeader,
 		Version:        version,
+		Arr:            arr.New(cfg.Radarr, cfg.Sonarr, cfg.Prowlarr),
 	})
 	if err != nil {
 		return err
@@ -71,7 +73,8 @@ func run(log *slog.Logger) error {
 	}
 	errs := make(chan error, 1)
 	go func() {
-		log.Info("listening", "port", cfg.Port, "version", version, "push", notifier.Enabled())
+		log.Info("listening", "port", cfg.Port, "version", version, "push", notifier.Enabled(),
+			"radarr", cfg.Radarr.Enabled(), "sonarr", cfg.Sonarr.Enabled(), "prowlarr", cfg.Prowlarr.Enabled())
 		errs <- httpServer.ListenAndServe()
 	}()
 
@@ -93,6 +96,11 @@ func run(log *slog.Logger) error {
 func newNotifier(cfg config.Config, st *store.Store, log *slog.Logger) (*push.Notifier, error) {
 	if cfg.APNSConfigFile == "" {
 		log.Info("push notifications off: APNS_CONFIG_FILE is not set")
+		return push.NewNotifier(st, nil, log), nil
+	}
+	if _, err := os.Stat(cfg.APNSConfigFile); errors.Is(err, os.ErrNotExist) {
+		// The app store mounts an empty folder by default: no file means no push yet.
+		log.Warn("push notifications off: APNs config file not found", "path", cfg.APNSConfigFile)
 		return push.NewNotifier(st, nil, log), nil
 	}
 	apnsConfig, err := push.LoadConfig(cfg.APNSConfigFile)

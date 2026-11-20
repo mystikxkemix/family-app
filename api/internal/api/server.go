@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"familyapp/internal/arr"
 	"familyapp/internal/auth"
 	"familyapp/internal/push"
 	"familyapp/internal/store"
@@ -26,6 +27,8 @@ type Options struct {
 	// ClientIPHeader is the proxy header with the real client IP (see config).
 	ClientIPHeader string
 	Version        string
+	// Arr holds the optional Radarr, Sonarr and Prowlarr clients.
+	Arr *arr.Services
 }
 
 // Server holds the dependencies of the handlers.
@@ -34,6 +37,7 @@ type Server struct {
 	notifier *push.Notifier
 	log      *slog.Logger
 	options  Options
+	arr      *arr.Services
 
 	setup *setupGate
 
@@ -53,10 +57,14 @@ func New(ctx context.Context, st *store.Store, notifier *push.Notifier, log *slo
 		notifier:       notifier,
 		log:            log,
 		options:        options,
+		arr:            options.Arr,
 		setup:          &setupGate{},
 		requestLimiter: auth.NewLimiter(600, 120),
 		loginLimiter:   auth.NewLimiter(10, 10),
 		accountLimiter: auth.NewLimiter(6, 10),
+	}
+	if s.arr == nil {
+		s.arr = &arr.Services{}
 	}
 	count, err := st.CountUsers(ctx)
 	if err != nil {
@@ -105,6 +113,18 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/watchlist", s.authed(s.createMedia))
 	mux.HandleFunc("PATCH /api/v1/watchlist/{mediaId}", s.authed(s.updateMedia))
 	mux.HandleFunc("DELETE /api/v1/watchlist/{mediaId}", s.authed(s.deleteMedia))
+	mux.HandleFunc("POST /api/v1/watchlist/{mediaId}/download", s.authed(s.downloadMedia))
+
+	// Media tools (Radarr, Sonarr, Prowlarr), when configured.
+	mux.HandleFunc("GET /api/v1/search/media", s.authed(s.searchMedia))
+	mux.HandleFunc("GET /api/v1/releases", s.authed(s.searchReleases))
+	mux.HandleFunc("POST /api/v1/releases/grab", s.authed(s.grabRelease))
+
+	// Places to try.
+	mux.HandleFunc("GET /api/v1/places", s.authed(s.listPlaces))
+	mux.HandleFunc("POST /api/v1/places", s.authed(s.createPlace))
+	mux.HandleFunc("PATCH /api/v1/places/{placeId}", s.authed(s.updatePlace))
+	mux.HandleFunc("DELETE /api/v1/places/{placeId}", s.authed(s.deletePlace))
 
 	// Events.
 	mux.HandleFunc("GET /api/v1/events", s.authed(s.listEvents))

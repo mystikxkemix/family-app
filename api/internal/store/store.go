@@ -32,6 +32,7 @@ type Store struct {
 	lists      *mongo.Collection
 	listItems  *mongo.Collection
 	media      *mongo.Collection
+	places     *mongo.Collection
 	events     *mongo.Collection
 }
 
@@ -57,6 +58,7 @@ func Open(ctx context.Context, uri, database string) (*Store, error) {
 		lists:      db.Collection("lists"),
 		listItems:  db.Collection("list_items"),
 		media:      db.Collection("media"),
+		places:     db.Collection("places"),
 		events:     db.Collection("events"),
 	}
 	if err := s.ensureIndexes(ctx); err != nil {
@@ -111,6 +113,9 @@ func (s *Store) ensureIndexes(ctx context.Context) error {
 			{Keys: bson.D{{Key: "householdId", Value: 1}, {Key: "listId", Value: 1}, {Key: "createdAt", Value: 1}}},
 		},
 		s.media: {
+			{Keys: bson.D{{Key: "householdId", Value: 1}, {Key: "status", Value: 1}, {Key: "createdAt", Value: -1}}},
+		},
+		s.places: {
 			{Keys: bson.D{{Key: "householdId", Value: 1}, {Key: "status", Value: 1}, {Key: "createdAt", Value: -1}}},
 		},
 		s.events: {

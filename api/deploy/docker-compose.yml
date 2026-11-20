@@ -9,8 +9,11 @@ services:
     environment:
       MONGODB_URI: mongodb://mongo:27017
       MONGODB_DB: family-app
-      # Uncomment to enable push (see README):
-      # APNS_CONFIG_FILE: /data/apns/apns.json
+      # Push (see README). A missing file only turns push off.
+      APNS_CONFIG_FILE: /data/apns/apns.json
+      # Optional media tools (see README):
+      # RADARR_URL: http://radarr:7878
+      # RADARR_API_KEY: ...
     # volumes:
     #   - ./apns:/data/apns:ro
     depends_on:

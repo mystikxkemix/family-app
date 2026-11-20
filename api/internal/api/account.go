@@ -243,6 +243,8 @@ type meResponse struct {
 	Members   []store.User    `json:"members"`
 	// PushEnabled tells the app whether the server can send notifications.
 	PushEnabled bool `json:"pushEnabled"`
+	// Integrations tells which media tools the server can use.
+	Integrations integrations `json:"integrations"`
 }
 
 func (s *Server) me(w http.ResponseWriter, r *http.Request, caller principal) error {
@@ -254,7 +256,8 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request, caller principal) er
 	if err != nil {
 		return err
 	}
-	writeJSON(w, http.StatusOK, meResponse{User: caller.User, Household: *household, Members: members, PushEnabled: s.notifier.Enabled()})
+	writeJSON(w, http.StatusOK, meResponse{User: caller.User, Household: *household, Members: members,
+		PushEnabled: s.notifier.Enabled(), Integrations: s.integrations()})
 	return nil
 }
 
