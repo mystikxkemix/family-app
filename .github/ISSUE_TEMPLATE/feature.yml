@@ -1,0 +1,22 @@
+name: Feature idea
+description: A new feature or a change. Claude writes the design, you validate it, then Claude builds it.
+labels: [feature]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: What you want, in a few words. Why it helps, if it is not obvious.
+      placeholder: "Example: a shared meal planner that fills the grocery list."
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      multiple: true
+      options:
+        - iPhone app
+        - Website
+        - API
+        - Not sure
