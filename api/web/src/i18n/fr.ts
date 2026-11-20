@@ -199,6 +199,7 @@ export const fr: Record<MessageKey, string> = {
   'admin.mustChange': 'Doit changer son mot de passe',
   'admin.makeAdmin': 'Rendre admin',
   'admin.removeAdmin': 'Retirer admin',
+  'admin.lastAdmin': 'Le serveur doit garder au moins un admin.',
   'admin.resetPassword': 'Réinitialiser le mot de passe',
   'admin.resetConfirm': 'Réinitialiser le mot de passe de {name} ? Ses appareils seront déconnectés.',
   'admin.tempPasswordTitle': 'Mot de passe temporaire de {name}',

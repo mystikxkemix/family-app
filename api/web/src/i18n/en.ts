@@ -198,6 +198,7 @@ export const en = {
   'admin.mustChange': 'Must change password',
   'admin.makeAdmin': 'Make admin',
   'admin.removeAdmin': 'Remove admin',
+  'admin.lastAdmin': 'The server needs at least one admin.',
   'admin.resetPassword': 'Reset password',
   'admin.resetConfirm': 'Reset the password of {name}? Their devices will be logged out.',
   'admin.tempPasswordTitle': 'Temporary password for {name}',

@@ -67,7 +67,21 @@ logout, push devices) and `isAdmin` (admin section of the website).
 
 ## Website (api/web)
 
-- `src/lib/api.ts` typed client (cookie + header), `src/lib/types.ts` models,
-  `src/features/<area>/` pages, `src/i18n/{en,fr}.ts` strings.
-- Same features as the iPhone app + Admin section (status, users, settings).
-- `npm run dev` proxies `/api` to localhost:8080.
+- React 19 + TypeScript + Vite, no UI library, plain CSS (`src/styles.css`,
+  light/dark). Builds into `api/internal/webui/dist` (a Vite plugin keeps
+  `.gitkeep`). Dev: `npm run dev` proxies `/api` to localhost:8080. This Mac's
+  npm skips dev packages: use `npm ci --include=dev`.
+- `src/lib/api.ts`: one typed `request<T>()`; always `credentials:
+  "same-origin"` + header `X-Requested-With: family-web`; errors carry the API
+  `code`. `src/lib/types.ts` mirrors the Go models. `src/lib/session.tsx`:
+  login state, `me`, the forced password change. `src/lib/hooks.ts`: tiny
+  router (`navigate`, `usePath`) and polling (on focus + every 30 s).
+  `src/lib/ics.ts`: "Add to my calendar" files.
+- Pages: `src/features/{auth,lists,watchlist,places,events,settings,admin}/`.
+  Routes: `/lists`, `/lists/<id>`, `/watchlist`, `/places`, `/events`,
+  `/settings`, `/admin` (admins only). The API answers index.html for them.
+- Strings: `src/i18n/en.ts` and `fr.ts` (same keys), `t('key', {name})`;
+  language from the browser, switch in Settings (localStorage).
+- To look at it: run the binary with a throwaway MongoDB and drive Chrome with
+  `puppeteer-core` (installed outside the repo), log in through the form, add
+  data with `fetch` in the page, screenshot each route.

@@ -16,6 +16,8 @@ export function UsersSection() {
   const { refreshMe } = useSession();
   const { run, showInfo } = useFeedback();
   const users = useLoader(() => api.get<AdminUser[]>('admin/users'));
+  // The server refuses to remove the last admin: disable the button instead.
+  const adminCount = users.data?.filter((user) => user.isAdmin).length ?? 0;
   const [temporary, setTemporary] = useState<{ name: string; password: string }>();
 
   const setAdmin = (user: AdminUser, isAdmin: boolean) =>
@@ -67,7 +69,13 @@ export function UsersSection() {
                 </span>
               </div>
               <div className="user-actions">
-                <button type="button" className="button" onClick={() => setAdmin(user, !user.isAdmin)}>
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => setAdmin(user, !user.isAdmin)}
+                  disabled={user.isAdmin && adminCount <= 1}
+                  title={user.isAdmin && adminCount <= 1 ? t('admin.lastAdmin') : undefined}
+                >
                   {user.isAdmin ? t('admin.removeAdmin') : t('admin.makeAdmin')}
                 </button>
                 {!isMe && (

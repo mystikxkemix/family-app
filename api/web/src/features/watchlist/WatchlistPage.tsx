@@ -54,7 +54,7 @@ export function WatchlistPage() {
               compact
               disabled={!(items.data ?? []).some((media) => media.status === 'toWatch')}
             />
-            <IconButton icon="plus" label={t('wl.add')} kind="primary" onClick={() => setEditing('new')} />
+            <IconButton icon="plus" label={t('wl.add')} kind="primary" onClick={() => setEditing('new')} compact />
           </>
         }
       />
