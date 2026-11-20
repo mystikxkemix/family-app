@@ -1,0 +1,23 @@
+# Local run of the API with its own MongoDB: docker compose up --build
+# For ZimaOS, use the app store entry instead (it reuses the host MongoDB).
+name: family-app
+services:
+  api:
+    build: ..
+    ports:
+      - "8100:8080"
+    environment:
+      MONGODB_URI: mongodb://mongo:27017
+      MONGODB_DB: family-app
+      # Uncomment to enable push (see README):
+      # APNS_CONFIG_FILE: /data/apns/apns.json
+    # volumes:
+    #   - ./apns:/data/apns:ro
+    depends_on:
+      - mongo
+  mongo:
+    image: mongo:8
+    volumes:
+      - mongo-data:/data/db
+volumes:
+  mongo-data:

@@ -1,0 +1,16 @@
+{
+  "credentials": [
+    {
+      "teamId": "TEAMID0001",
+      "keyId": "KEYID00001",
+      "keyFile": "/data/apns/AuthKey_KEYID00001.p8",
+      "topics": ["com.example.family"]
+    },
+    {
+      "teamId": "TEAMID0002",
+      "keyId": "KEYID00002",
+      "keyFile": "/data/apns/AuthKey_KEYID00002.p8",
+      "topics": ["com.example.family.second"]
+    }
+  ]
+}
