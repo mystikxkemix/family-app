@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"syscall"
 	"time"
 
 	"familyapp/internal/push"
@@ -115,6 +116,67 @@ func LoadSettings(path string) (settings Settings, found bool, err error) {
 		}
 	}
 	return settings, true, nil
+}
+
+// ErrNotWritable means the API cannot write in the folder of the settings file.
+var ErrNotWritable = errors.New("the settings folder is not writable")
+
+// SaveSettings writes the settings file atomically (temporary file, then
+// rename), readable by the API user only: it holds secrets.
+func SaveSettings(path string, settings Settings) error {
+	data, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return err
+	}
+	return WriteFileAtomic(path, append(data, '\n'))
+}
+
+// WriteFileAtomic writes a file with mode 0600 through a temporary file in the
+// same folder, so a crash never leaves a half-written file.
+func WriteFileAtomic(path string, data []byte) error {
+	directory := filepath.Dir(path)
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		return notWritable(err)
+	}
+	temporary, err := os.CreateTemp(directory, ".tmp-*")
+	if err != nil {
+		return notWritable(err)
+	}
+	defer os.Remove(temporary.Name())
+	if _, err := temporary.Write(data); err != nil {
+		temporary.Close()
+		return err
+	}
+	if err := temporary.Chmod(0o600); err != nil {
+		temporary.Close()
+		return err
+	}
+	if err := temporary.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(temporary.Name(), path); err != nil {
+		return notWritable(err)
+	}
+	return nil
+}
+
+// SettingsWritable reports whether SaveSettings can write next to path.
+func SettingsWritable(path string) bool {
+	directory := filepath.Dir(path)
+	probe, err := os.CreateTemp(directory, ".probe-*")
+	if err != nil {
+		return false
+	}
+	probe.Close()
+	os.Remove(probe.Name())
+	return true
+}
+
+func notWritable(err error) error {
+	if errors.Is(err, os.ErrPermission) || errors.Is(err, syscall.EROFS) {
+		return fmt.Errorf("%w: %v", ErrNotWritable, err)
+	}
+	return err
 }
 
 func stringEnv(key, fallback string) string {

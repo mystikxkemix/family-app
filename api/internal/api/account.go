@@ -41,7 +41,55 @@ var errPasswordChangeRequired = &apiError{
 	Message: "choose a new password before using the app",
 }
 
-// authed checks the "Authorization: Bearer <token>" header before the handler.
+// The website logs in with an HttpOnly cookie instead of a bearer token, so
+// JavaScript never sees the token. Every cookie request must also carry the
+// webHeader: a cross-site page cannot add it without a CORS preflight, which
+// the API never accepts. That blocks CSRF.
+const (
+	sessionCookie  = "family_session"
+	webHeader      = "X-Requested-With"
+	webHeaderValue = "family-web"
+)
+
+var errMissingWebHeader = &apiError{Status: http.StatusForbidden, Code: "csrf", Message: "missing X-Requested-With header"}
+
+// isWebRequest reports whether the request comes from the website.
+func isWebRequest(r *http.Request) bool {
+	return r.Header.Get(webHeader) == webHeaderValue
+}
+
+// requestToken returns the session token of a request: the bearer token of
+// the iPhone app, or the cookie of the website.
+func requestToken(r *http.Request) (token string, fromCookie bool) {
+	if bearer, found := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); found && bearer != "" {
+		return bearer, false
+	}
+	if cookie, err := r.Cookie(sessionCookie); err == nil && cookie.Value != "" {
+		return cookie.Value, true
+	}
+	return "", false
+}
+
+// setSessionCookie stores the token in the website's cookie (or clears it).
+func (s *Server) setSessionCookie(w http.ResponseWriter, r *http.Request, token string) {
+	cookie := &http.Cookie{
+		Name:     sessionCookie,
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+		// Behind an HTTPS proxy the API itself sees plain HTTP.
+		Secure: r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https",
+		MaxAge: int(s.options.SessionTTL.Seconds()),
+	}
+	if token == "" {
+		cookie.MaxAge = -1
+	}
+	http.SetCookie(w, cookie)
+}
+
+// authed checks the "Authorization: Bearer <token>" header (or the website
+// cookie) before the handler.
 // An account that must change its password can only use the routes of
 // authedDuringPasswordChange.
 func (s *Server) authed(handler authedFunc) http.HandlerFunc {
@@ -56,9 +104,12 @@ func (s *Server) authedDuringPasswordChange(handler authedFunc) http.HandlerFunc
 
 func (s *Server) authenticate(handler authedFunc, allowPendingPasswordChange bool) http.HandlerFunc {
 	return s.handle(func(w http.ResponseWriter, r *http.Request) error {
-		token, found := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if !found || token == "" {
+		token, fromCookie := requestToken(r)
+		if token == "" {
 			return errUnauthorized
+		}
+		if fromCookie && !isWebRequest(r) {
+			return errMissingWebHeader
 		}
 		session, err := s.store.SessionByTokenHash(r.Context(), auth.HashToken(token))
 		if errors.Is(err, store.ErrNotFound) {
@@ -81,6 +132,8 @@ func (s *Server) authenticate(handler authedFunc, allowPendingPasswordChange boo
 		if time.Since(session.RefreshedAt) > sessionRefreshEvery {
 			if err := s.store.RefreshSession(r.Context(), session.ID, s.options.SessionTTL); err != nil {
 				s.log.Warn("refresh session", "error", err)
+			} else if fromCookie {
+				s.setSessionCookie(w, r, token)
 			}
 		}
 		return handler(w, r, principal{SessionID: session.ID, User: *user, HouseholdID: user.HouseholdID})
@@ -133,7 +186,7 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) error {
 	if err := s.registerWithInvite(r.Context(), user, request.InviteCode); err != nil {
 		return err
 	}
-	return s.startSession(w, r.Context(), user, http.StatusCreated)
+	return s.startSession(w, r, user, http.StatusCreated)
 }
 
 // createAdmin creates the first household and its admin from the ADMIN_*
@@ -164,6 +217,7 @@ func (s *Server) createAdmin(ctx context.Context, admin AdminAccount) error {
 		PasswordHash:       hash,
 		HouseholdID:        household.ID,
 		MustChangePassword: true,
+		IsAdmin:            true,
 	}
 	if err := s.store.CreateUser(ctx, user); err != nil {
 		return err
@@ -234,16 +288,21 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) error {
 	if !ok {
 		return invalid
 	}
-	return s.startSession(w, r.Context(), user, http.StatusOK)
+	return s.startSession(w, r, user, http.StatusOK)
 }
 
 // startSession creates a session and answers with its token. The token is
 // shown once and only its hash is stored.
-func (s *Server) startSession(w http.ResponseWriter, ctx context.Context, user *store.User, status int) error {
+func (s *Server) startSession(w http.ResponseWriter, r *http.Request, user *store.User, status int) error {
 	token := auth.NewToken()
 	session := &store.Session{TokenHash: auth.HashToken(token), UserID: user.ID, HouseholdID: user.HouseholdID}
-	if err := s.store.CreateSession(ctx, session, s.options.SessionTTL); err != nil {
+	if err := s.store.CreateSession(r.Context(), session, s.options.SessionTTL); err != nil {
 		return err
+	}
+	if isWebRequest(r) {
+		// The website keeps the token in an HttpOnly cookie, out of JavaScript.
+		s.setSessionCookie(w, r, token)
+		token = ""
 	}
 	writeJSON(w, status, authResponse{Token: token, User: *user})
 	return nil
@@ -252,6 +311,9 @@ func (s *Server) startSession(w http.ResponseWriter, ctx context.Context, user *
 func (s *Server) logout(w http.ResponseWriter, r *http.Request, caller principal) error {
 	if err := s.store.DeleteSession(r.Context(), caller.SessionID); err != nil {
 		return err
+	}
+	if _, fromCookie := requestToken(r); fromCookie {
+		s.setSessionCookie(w, r, "")
 	}
 	noContent(w)
 	return nil

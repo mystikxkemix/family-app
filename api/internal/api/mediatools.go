@@ -19,10 +19,11 @@ type integrations struct {
 }
 
 func (s *Server) integrations() integrations {
+	services := s.arrServices()
 	return integrations{
-		Radarr:   s.arr.Radarr != nil,
-		Sonarr:   s.arr.Sonarr != nil,
-		Prowlarr: s.arr.Prowlarr != nil,
+		Radarr:   services.Radarr != nil,
+		Sonarr:   services.Sonarr != nil,
+		Prowlarr: services.Prowlarr != nil,
 	}
 }
 
@@ -61,7 +62,7 @@ func (s *Server) searchMedia(w http.ResponseWriter, r *http.Request, caller prin
 	if err != nil {
 		return err
 	}
-	library := s.arr.Library(kind)
+	library := s.arrServices().Library(kind)
 	if library == nil {
 		return notConfigured(map[string]string{store.MediaKindMovie: "Radarr", store.MediaKindShow: "Sonarr"}[kind])
 	}
@@ -83,7 +84,7 @@ func (s *Server) downloadMedia(w http.ResponseWriter, r *http.Request, caller pr
 	if err != nil {
 		return err
 	}
-	library := s.arr.Library(media.Kind)
+	library := s.arrServices().Library(media.Kind)
 	if library == nil {
 		return notConfigured(map[string]string{store.MediaKindMovie: "Radarr", store.MediaKindShow: "Sonarr"}[media.Kind])
 	}
@@ -102,7 +103,8 @@ func (s *Server) downloadMedia(w http.ResponseWriter, r *http.Request, caller pr
 
 // searchReleases runs a Prowlarr interactive search.
 func (s *Server) searchReleases(w http.ResponseWriter, r *http.Request, caller principal) error {
-	if s.arr.Prowlarr == nil {
+	prowlarr := s.arrServices().Prowlarr
+	if prowlarr == nil {
 		return notConfigured("Prowlarr")
 	}
 	term, err := queryTerm(r)
@@ -115,7 +117,7 @@ func (s *Server) searchReleases(w http.ResponseWriter, r *http.Request, caller p
 			return err
 		}
 	}
-	releases, err := s.arr.Prowlarr.Search(r.Context(), term, kind)
+	releases, err := prowlarr.Search(r.Context(), term, kind)
 	if err != nil {
 		return arrError(err)
 	}
@@ -130,7 +132,8 @@ type grabRequest struct {
 
 // grabRelease sends a release found by searchReleases to the download client.
 func (s *Server) grabRelease(w http.ResponseWriter, r *http.Request, caller principal) error {
-	if s.arr.Prowlarr == nil {
+	prowlarr := s.arrServices().Prowlarr
+	if prowlarr == nil {
 		return notConfigured("Prowlarr")
 	}
 	var request grabRequest
@@ -140,7 +143,7 @@ func (s *Server) grabRelease(w http.ResponseWriter, r *http.Request, caller prin
 	if strings.TrimSpace(request.GUID) == "" || len(request.GUID) > 2000 || request.IndexerID <= 0 {
 		return badRequest("guid and indexerId are required")
 	}
-	if err := s.arr.Prowlarr.Grab(r.Context(), request.GUID, request.IndexerID); err != nil {
+	if err := prowlarr.Grab(r.Context(), request.GUID, request.IndexerID); err != nil {
 		return arrError(err)
 	}
 	s.log.Info("release grabbed", "user", caller.User.Username, "indexerId", request.IndexerID)

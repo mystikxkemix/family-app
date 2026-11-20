@@ -330,6 +330,37 @@ func (p *Indexers) Grab(ctx context.Context, guid string, indexerID int) error {
 	return p.client.do(ctx, http.MethodPost, "/api/v1/search", nil, body, nil)
 }
 
+// --- Connection test -----------------------------------------------------------
+
+// systemStatus is the part of /system/status we show.
+type systemStatus struct {
+	AppName string `json:"appName"`
+	Version string `json:"version"`
+}
+
+// Ping asks the tool for its status and returns "<name> <version>".
+func (c *client) ping(ctx context.Context, path string) (string, error) {
+	var status systemStatus
+	if err := c.do(ctx, http.MethodGet, path, nil, nil, &status); err != nil {
+		return "", err
+	}
+	name := status.AppName
+	if name == "" {
+		name = c.name
+	}
+	return strings.TrimSpace(name + " " + status.Version), nil
+}
+
+// Ping checks the address and the API key of Radarr or Sonarr.
+func (l *Library) Ping(ctx context.Context) (string, error) {
+	return l.client.ping(ctx, "/api/v3/system/status")
+}
+
+// Ping checks the address and the API key of Prowlarr.
+func (p *Indexers) Ping(ctx context.Context) (string, error) {
+	return p.client.ping(ctx, "/api/v1/system/status")
+}
+
 // --- All tools ------------------------------------------------------------------
 
 // Services holds the configured tools. A nil field means "not configured".

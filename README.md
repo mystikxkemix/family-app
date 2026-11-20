@@ -19,6 +19,26 @@ sends a push notification to the other members.
 | Household | Invite a person with a one-time code. Rename the household. |
 | Push | A notification when someone else adds a list, an item, a title or an event. Ten groceries added in a row give one notification, not ten. |
 
+## Website
+
+The API also serves a website on the same address (`http://<server>:8100/`):
+everything the iPhone app does, in French and English, plus an **Admin**
+section for admins:
+
+- server status;
+- users: make someone admin, reset a password (the person must change it at
+  the next login), delete an account;
+- media tools (Radarr, Sonarr, Prowlarr) and push keys: saved to
+  `settings.json` and applied at once, with a "Test" button. Secrets are never
+  shown again after saving.
+
+The first account (from `ADMIN_USERNAME`) is an admin. The website logs in
+with an HttpOnly cookie, never a token in JavaScript.
+
+Development: `cd api/web && npm install && npm run dev` (proxies `/api` to an
+API on port 8080). `npm run build` writes into `api/internal/webui/dist`, which
+the Go binary embeds; the Docker image does it for you.
+
 ## API
 
 ### Run it
@@ -65,7 +85,8 @@ sudo chmod 600 /DATA/AppData/family-api/data/settings.json
 
 A wrong key name (for example `radar`) stops the API with an error, so a typo
 never turns a feature off without telling you. The API reads the file at
-start: restart it after a change.
+start; the **Admin** page of the website edits it and applies the change at
+once (the data folder must then be writable by user `65532`).
 
 The API keys of Radarr, Sonarr and Prowlarr stay on the server: the app never
 sees them. Any member of the household can start a download.

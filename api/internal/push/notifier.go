@@ -28,8 +28,10 @@ type Sender interface {
 // Sending runs in the background: a slow APNs never slows down the API.
 type Notifier struct {
 	devices DeviceStore
-	sender  Sender // nil when push is not configured
 	log     *slog.Logger
+
+	senderMu sync.RWMutex
+	sender   Sender // nil when push is not configured
 	// batchDelay is how long a batch waits for more events before it is sent.
 	batchDelay time.Duration
 
@@ -57,19 +59,34 @@ func NewNotifier(devices DeviceStore, sender Sender, log *slog.Logger) *Notifier
 	}
 }
 
+// SetSender replaces the APNs client (nil turns push off). The admin calls it
+// through the settings page, without restarting the API.
+func (n *Notifier) SetSender(sender Sender) {
+	n.senderMu.Lock()
+	n.sender = sender
+	n.senderMu.Unlock()
+}
+
+func (n *Notifier) currentSender() Sender {
+	n.senderMu.RLock()
+	defer n.senderMu.RUnlock()
+	return n.sender
+}
+
 // Enabled reports whether push notifications are configured.
 func (n *Notifier) Enabled() bool {
-	return n.sender != nil
+	return n.currentSender() != nil
 }
 
 // Supports reports whether a device with this bundle identifier can get pushes.
 func (n *Notifier) Supports(topic string) bool {
-	return n.sender != nil && n.sender.Supports(topic)
+	sender := n.currentSender()
+	return sender != nil && sender.Supports(topic)
 }
 
 // Notify sends a notification to the household, except to the actor.
 func (n *Notifier) Notify(householdID, actorID bson.ObjectID, notification Notification) {
-	if n.sender == nil {
+	if !n.Enabled() {
 		return
 	}
 	n.wg.Add(1)
@@ -83,7 +100,7 @@ func (n *Notifier) Notify(householdID, actorID bson.ObjectID, notification Notif
 // delay into one notification. Adding ten groceries in a row sends one "added
 // 10 items" push instead of ten. build receives the number of grouped events.
 func (n *Notifier) NotifyBatched(key string, householdID, actorID bson.ObjectID, build func(count int) Notification) {
-	if n.sender == nil {
+	if !n.Enabled() {
 		return
 	}
 	n.mu.Lock()
@@ -136,16 +153,20 @@ func (n *Notifier) send(householdID, actorID bson.ObjectID, notification Notific
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	sender := n.currentSender()
+	if sender == nil {
+		return
+	}
 	devices, err := n.devices.DevicesForHousehold(ctx, householdID, actorID)
 	if err != nil {
 		n.log.Error("load devices for push", "error", err)
 		return
 	}
 	for _, device := range devices {
-		if !n.sender.Supports(device.Topic) {
+		if !sender.Supports(device.Topic) {
 			continue
 		}
-		err := n.sender.Send(ctx, device.Token, device.Topic, device.Environment, notification)
+		err := sender.Send(ctx, device.Token, device.Topic, device.Environment, notification)
 		switch {
 		case errors.Is(err, ErrUnregistered):
 			n.log.Info("forget invalid device token", "reason", err)

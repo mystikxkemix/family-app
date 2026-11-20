@@ -2,3 +2,4 @@
 deploy
 *.md
 *_test.go
+web/node_modules

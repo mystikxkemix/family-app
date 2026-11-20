@@ -3,12 +3,20 @@ package api
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -258,7 +266,7 @@ func strangerClient(t *testing.T, server *Server, base string) *client {
 		t.Fatal(err)
 	}
 	recorder := httptest.NewRecorder()
-	if err := server.startSession(recorder, ctx, user, 200); err != nil {
+	if err := server.startSession(recorder, httptest.NewRequest("POST", "/api/v1/auth/login", nil), user, 200); err != nil {
 		t.Fatal(err)
 	}
 	var answer authResponse
@@ -371,7 +379,7 @@ func TestMediaTools(t *testing.T) {
 	}))
 	defer fake.Close()
 	cfg := config.ArrConfig{URL: fake.URL, APIKey: "k"}
-	server, httpServer := newTestServerWith(t, Options{SessionTTL: time.Hour, Admin: testAdmin, Arr: arr.New(cfg, config.ArrConfig{}, cfg)})
+	server, httpServer := newTestServerWith(t, Options{SessionTTL: time.Hour, Admin: testAdmin, Settings: config.Settings{Radarr: cfg, Prowlarr: cfg}})
 	alex := signUp(t, server, httpServer.URL)
 
 	var me meResponse
@@ -407,4 +415,251 @@ func TestMediaTools(t *testing.T) {
 	}
 	alex.call("POST", "/api/v1/releases/grab", map[string]any{"guid": "g1", "indexerId": 2}, 204, nil)
 	alex.call("POST", "/api/v1/releases/grab", map[string]any{"guid": "", "indexerId": 2}, 400, nil)
+}
+
+// webClient talks like the website: cookie session and the X-Requested-With header.
+type webClient struct {
+	t      *testing.T
+	base   string
+	http   *http.Client
+	header bool
+}
+
+func newWebClient(t *testing.T, base string) *webClient {
+	jar, _ := cookiejar.New(nil)
+	return &webClient{t: t, base: base, http: &http.Client{Jar: jar}, header: true}
+}
+
+func (c *webClient) call(method, path string, body any, wantStatus int, out any) {
+	c.t.Helper()
+	var reader io.Reader
+	if body != nil {
+		data, _ := json.Marshal(body)
+		reader = bytes.NewReader(data)
+	}
+	request, _ := http.NewRequest(method, c.base+path, reader)
+	if c.header {
+		request.Header.Set("X-Requested-With", "family-web")
+	}
+	response, err := c.http.Do(request)
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	defer response.Body.Close()
+	data, _ := io.ReadAll(response.Body)
+	if response.StatusCode != wantStatus {
+		c.t.Fatalf("%s %s: want %d, got %d: %s", method, path, wantStatus, response.StatusCode, data)
+	}
+	if out != nil {
+		if err := json.Unmarshal(data, out); err != nil {
+			c.t.Fatalf("decode %s: %v", data, err)
+		}
+	}
+}
+
+func TestWebsiteCookieLogin(t *testing.T) {
+	server, httpServer := newTestServer(t)
+	signUp(t, server, httpServer.URL) // admin password becomes password-1
+
+	web := newWebClient(t, httpServer.URL)
+	var login authResponse
+	web.call("POST", "/api/v1/auth/login", map[string]string{"username": "alex", "password": "password-1"}, 200, &login)
+	if login.Token != "" {
+		t.Fatal("the website must never get the token in JSON")
+	}
+	var me meResponse
+	web.call("GET", "/api/v1/me", nil, 200, &me)
+	if !me.User.IsAdmin {
+		t.Fatal("the env admin must be an admin")
+	}
+
+	// The cookie alone, without the header, is refused (CSRF).
+	web.header = false
+	web.call("GET", "/api/v1/me", nil, 403, nil)
+	web.header = true
+
+	web.call("POST", "/api/v1/auth/logout", nil, 204, nil)
+	web.call("GET", "/api/v1/me", nil, 401, nil)
+}
+
+func TestAdminUsers(t *testing.T) {
+	server, httpServer := newTestServer(t)
+	alex := signUp(t, server, httpServer.URL)
+
+	var invite inviteResponse
+	alex.call("POST", "/api/v1/household/invites", nil, 201, &invite)
+	anonymous := &client{t: t, base: httpServer.URL}
+	var samAuth authResponse
+	anonymous.call("POST", "/api/v1/auth/register", map[string]string{"username": "sam", "password": "password-2", "displayName": "Sam", "inviteCode": invite.Code}, 201, &samAuth)
+	sam := &client{t: t, base: httpServer.URL, token: samAuth.Token}
+
+	// A member is not an admin.
+	sam.call("GET", "/api/v1/admin/users", nil, 403, nil)
+
+	var users []adminUser
+	alex.call("GET", "/api/v1/admin/users", nil, 200, &users)
+	if len(users) != 2 || users[0].HouseholdName != "Home" || !users[0].IsAdmin || users[1].IsAdmin {
+		t.Fatalf("admin users: %+v", users)
+	}
+	alexID, samID := users[0].ID.Hex(), users[1].ID.Hex()
+
+	// The last admin cannot be removed, but can promote someone first.
+	alex.call("PATCH", "/api/v1/admin/users/"+alexID, map[string]bool{"isAdmin": false}, 409, nil)
+	alex.call("PATCH", "/api/v1/admin/users/"+samID, map[string]bool{"isAdmin": true}, 200, nil)
+	sam.call("GET", "/api/v1/admin/status", nil, 200, nil)
+	sam.call("PATCH", "/api/v1/admin/users/"+samID, map[string]bool{"isAdmin": false}, 200, nil)
+
+	// Reset password: old sessions end, the temporary password must be changed.
+	var reset resetPasswordResponse
+	alex.call("POST", "/api/v1/admin/users/"+samID+"/reset-password", nil, 200, &reset)
+	sam.call("GET", "/api/v1/me", nil, 401, nil)
+	var again authResponse
+	anonymous.call("POST", "/api/v1/auth/login", map[string]string{"username": "sam", "password": reset.TemporaryPassword}, 200, &again)
+	if !again.User.MustChangePassword {
+		t.Fatal("a reset password must be changed at the next login")
+	}
+
+	alex.call("DELETE", "/api/v1/admin/users/"+alexID, nil, 400, nil)
+	alex.call("DELETE", "/api/v1/admin/users/"+samID, nil, 204, nil)
+	anonymous.call("POST", "/api/v1/auth/login", map[string]string{"username": "sam", "password": reset.TemporaryPassword}, 401, nil)
+}
+
+func TestAdminSettings(t *testing.T) {
+	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Api-Key") != "radarr-key" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		_, _ = w.Write([]byte(`{"appName":"Radarr","version":"5.1"}`))
+	}))
+	defer fake.Close()
+
+	settingsFile := filepath.Join(t.TempDir(), "settings.json")
+	server, httpServer := newTestServerWith(t, Options{SessionTTL: time.Hour, Admin: testAdmin, SettingsFile: settingsFile})
+	alex := signUp(t, server, httpServer.URL)
+
+	var status adminStatus
+	alex.call("GET", "/api/v1/admin/status", nil, 200, &status)
+	if status.SettingsFound || !status.SettingsWritable || status.Users != 1 {
+		t.Fatalf("status: %+v", status)
+	}
+
+	// Save Radarr: applied at once, written to the file, key never sent back.
+	body := map[string]any{
+		"radarr":   map[string]any{"url": fake.URL + "/", "apiKey": "radarr-key", "qualityProfileId": 2},
+		"sonarr":   map[string]any{"url": ""},
+		"prowlarr": map[string]any{"url": ""},
+		"apns":     map[string]any{"credentials": []any{}},
+	}
+	var saved adminSettings
+	alex.call("PUT", "/api/v1/admin/settings", body, 200, &saved)
+	if !saved.Radarr.APIKeySet || saved.Radarr.APIKey != "" || saved.Radarr.URL != fake.URL {
+		t.Fatalf("saved settings: %+v", saved)
+	}
+	var me meResponse
+	alex.call("GET", "/api/v1/me", nil, 200, &me)
+	if !me.Integrations.Radarr {
+		t.Fatal("new settings must apply without a restart")
+	}
+	onDisk, found, err := config.LoadSettings(settingsFile)
+	if err != nil || !found || onDisk.Radarr.APIKey != "radarr-key" {
+		t.Fatalf("file: %+v found=%v err=%v", onDisk, found, err)
+	}
+	if info, _ := os.Stat(settingsFile); info.Mode().Perm() != 0o600 {
+		t.Fatalf("settings file mode %v, want 0600", info.Mode().Perm())
+	}
+
+	// An empty key keeps the saved one; the test call uses it.
+	body["radarr"] = map[string]any{"url": fake.URL, "apiKey": ""}
+	alex.call("PUT", "/api/v1/admin/settings", body, 200, &saved)
+	var test testToolResponse
+	alex.call("POST", "/api/v1/admin/settings/test", map[string]string{"tool": "radarr"}, 200, &test)
+	if !test.OK || test.Message != "Radarr 5.1 answered" {
+		t.Fatalf("test: %+v", test)
+	}
+	alex.call("POST", "/api/v1/admin/settings/test", map[string]string{"tool": "sonarr"}, 200, &test)
+	if test.OK {
+		t.Fatal("sonarr is not configured")
+	}
+
+	// Validation.
+	body["radarr"] = map[string]any{"url": "ftp://x", "apiKey": "k"}
+	alex.call("PUT", "/api/v1/admin/settings", body, 400, nil)
+	body["radarr"] = map[string]any{"url": ""}
+	body["apns"] = map[string]any{"credentials": []any{map[string]any{"teamId": "ABCDE12345", "keyId": "KEY0000001", "topics": []string{"a.b"}, "key": "not a key"}}}
+	alex.call("PUT", "/api/v1/admin/settings", body, 400, nil)
+
+	// A valid .p8 key is written next to the settings file and turns push on.
+	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	der, _ := x509.MarshalPKCS8PrivateKey(key)
+	pemKey := string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}))
+	body["apns"] = map[string]any{"credentials": []any{map[string]any{"teamId": "ABCDE12345", "keyId": "KEY0000001", "topics": []string{"a.b"}, "key": pemKey}}}
+	alex.call("PUT", "/api/v1/admin/settings", body, 200, &saved)
+	if len(saved.APNs.Credentials) != 1 || !saved.APNs.Credentials[0].KeySet || saved.APNs.Credentials[0].Key != "" {
+		t.Fatalf("apns: %+v", saved.APNs)
+	}
+	if _, err := os.Stat(filepath.Join(filepath.Dir(settingsFile), "apns", "AuthKey_KEY0000001.p8")); err != nil {
+		t.Fatal("key file not written")
+	}
+	alex.call("GET", "/api/v1/me", nil, 200, &me)
+	if !me.PushEnabled || me.Integrations.Radarr {
+		t.Fatalf("push on, radarr off expected: %+v", me)
+	}
+}
+
+func TestAdminSettingsNotWritable(t *testing.T) {
+	directory := t.TempDir()
+	if err := os.Chmod(directory, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(directory, 0o700)
+	server, httpServer := newTestServerWith(t, Options{SessionTTL: time.Hour, Admin: testAdmin, SettingsFile: filepath.Join(directory, "settings.json")})
+	alex := signUp(t, server, httpServer.URL)
+	body := map[string]any{"radarr": map[string]any{"url": ""}, "sonarr": map[string]any{"url": ""}, "prowlarr": map[string]any{"url": ""}, "apns": map[string]any{"credentials": []any{}}}
+	alex.call("PUT", "/api/v1/admin/settings", body, 409, nil)
+}
+
+func TestEnsureAdminPromotesOldAccounts(t *testing.T) {
+	server, httpServer := newTestServer(t)
+	signUp(t, server, httpServer.URL)
+	ctx := context.Background()
+	admin, _ := server.store.UserByUsername(ctx, "alex")
+	if _, err := server.store.UpdateUser(ctx, admin.ID, bson.M{"isAdmin": false}); err != nil {
+		t.Fatal(err)
+	}
+	// A database from before the admin role: the next start promotes the env admin.
+	if err := server.ensureAdmin(ctx, AdminAccount{Username: "Alex"}); err != nil {
+		t.Fatal(err)
+	}
+	admin, _ = server.store.UserByUsername(ctx, "alex")
+	if !admin.IsAdmin {
+		t.Fatal("the env admin account was not promoted")
+	}
+}
+
+func TestWebsiteRoutes(t *testing.T) {
+	_, httpServer := newTestServer(t)
+	response, err := http.Get(httpServer.URL + "/lists/some-id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	// Without a build the website answers 404 with a hint; with one, index.html.
+	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusNotFound {
+		t.Fatalf("website route: %d", response.StatusCode)
+	}
+	if csp := response.Header.Get("Content-Security-Policy"); !strings.Contains(csp, "default-src 'self'") {
+		t.Fatalf("website CSP: %s", csp)
+	}
+	response, err = http.Get(httpServer.URL + "/api/v1/nope")
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusNotFound || !strings.HasPrefix(response.Header.Get("Content-Type"), "application/json") {
+		t.Fatalf("unknown API path: %d %s", response.StatusCode, response.Header.Get("Content-Type"))
+	}
+	if csp := response.Header.Get("Content-Security-Policy"); !strings.Contains(csp, "default-src 'none'") {
+		t.Fatalf("API CSP: %s", csp)
+	}
 }

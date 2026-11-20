@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"familyapp/internal/api"
-	"familyapp/internal/arr"
 	"familyapp/internal/config"
 	"familyapp/internal/push"
 	"familyapp/internal/store"
@@ -54,17 +53,17 @@ func run(log *slog.Logger) error {
 		log.Info("no settings file: push and media tools are off", "path", cfg.SettingsFile)
 	}
 
-	notifier, err := newNotifier(settings, st, log)
-	if err != nil {
-		return err
-	}
+	// The server sets the APNs client from the settings (and again when the
+	// admin changes them).
+	notifier := push.NewNotifier(st, nil, log)
 	defer notifier.Close()
 
 	server, err := api.New(startCtx, st, notifier, log, api.Options{
 		SessionTTL:     cfg.SessionTTL,
 		ClientIPHeader: cfg.ClientIPHeader,
 		Version:        version,
-		Arr:            arr.New(settings.Radarr, settings.Sonarr, settings.Prowlarr),
+		SettingsFile:   cfg.SettingsFile,
+		Settings:       settings,
 		Admin:          api.AdminAccount{Username: cfg.AdminUsername, Password: cfg.AdminPassword},
 	})
 	if err != nil {
@@ -99,17 +98,4 @@ func run(log *slog.Logger) error {
 		return err
 	}
 	return nil
-}
-
-// newNotifier loads the APNs keys. Without keys in the settings, push is off.
-func newNotifier(settings config.Settings, st *store.Store, log *slog.Logger) (*push.Notifier, error) {
-	if len(settings.APNs.Credentials) == 0 {
-		log.Info("push notifications off: no APNs key in the settings file")
-		return push.NewNotifier(st, nil, log), nil
-	}
-	client, err := push.NewClient(settings.APNs)
-	if err != nil {
-		return nil, err
-	}
-	return push.NewNotifier(st, client, log), nil
 }

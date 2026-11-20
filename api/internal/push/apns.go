@@ -256,6 +256,12 @@ func signES256(key *ecdsa.PrivateKey, keyID, teamID string, now time.Time) (stri
 	return unsigned + "." + encoding.EncodeToString(signature), nil
 }
 
+// ValidateKey checks that the content of a .p8 file is an Apple APNs key.
+func ValidateKey(pemData []byte) error {
+	_, err := parseKey(pemData)
+	return err
+}
+
 // parseKey reads an Apple .p8 file (a PKCS#8 PEM with a P-256 key).
 func parseKey(pemData []byte) (*ecdsa.PrivateKey, error) {
 	block, _ := pem.Decode(pemData)

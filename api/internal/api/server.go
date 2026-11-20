@@ -8,10 +8,13 @@ import (
 	"net/http"
 	"runtime/debug"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"familyapp/internal/arr"
 	"familyapp/internal/auth"
+	"familyapp/internal/config"
 	"familyapp/internal/push"
 	"familyapp/internal/store"
 )
@@ -25,8 +28,10 @@ type Options struct {
 	// ClientIPHeader is the proxy header with the real client IP (see config).
 	ClientIPHeader string
 	Version        string
-	// Arr holds the optional Radarr, Sonarr and Prowlarr clients.
-	Arr *arr.Services
+	// SettingsFile is where the admin page saves the settings ("" = read only).
+	SettingsFile string
+	// Settings are the APNs keys and media tools loaded at start.
+	Settings config.Settings
 	// Admin is the first account, created when the database has no user.
 	Admin AdminAccount
 }
@@ -43,7 +48,14 @@ type Server struct {
 	notifier *push.Notifier
 	log      *slog.Logger
 	options  Options
-	arr      *arr.Services
+	// startedAt is shown on the admin status page.
+	startedAt time.Time
+
+	// settingsMu guards settings and the clients built from them, which the
+	// admin can change at run time.
+	settingsMu sync.Mutex
+	settings   config.Settings
+	arr        atomic.Pointer[arr.Services]
 
 	// requestLimiter limits every request per client IP.
 	requestLimiter *auth.Limiter
@@ -61,14 +73,19 @@ func New(ctx context.Context, st *store.Store, notifier *push.Notifier, log *slo
 		notifier:       notifier,
 		log:            log,
 		options:        options,
-		arr:            options.Arr,
+		startedAt:      time.Now().UTC(),
 		requestLimiter: auth.NewLimiter(600, 120),
 		loginLimiter:   auth.NewLimiter(10, 10),
 		accountLimiter: auth.NewLimiter(6, 10),
 	}
-	if s.arr == nil {
-		s.arr = &arr.Services{}
+	sender, err := newSender(options.Settings.APNs)
+	if err != nil {
+		return nil, err
 	}
+	s.settingsMu.Lock()
+	s.applySettingsLocked(options.Settings, sender)
+	s.settingsMu.Unlock()
+
 	count, err := st.CountUsers(ctx)
 	if err != nil {
 		return nil, err
@@ -78,7 +95,30 @@ func New(ctx context.Context, st *store.Store, notifier *push.Notifier, log *slo
 			return nil, err
 		}
 	}
+	if err := s.ensureAdmin(ctx, options.Admin); err != nil {
+		return nil, err
+	}
 	return s, nil
+}
+
+// applySettingsLocked switches to new settings: media tool clients and the
+// APNs client. The caller holds settingsMu.
+func (s *Server) applySettingsLocked(settings config.Settings, sender push.Sender) {
+	s.settings = settings
+	s.arr.Store(arr.New(settings.Radarr, settings.Sonarr, settings.Prowlarr))
+	s.notifier.SetSender(sender)
+}
+
+// currentSettings returns a copy of the settings in use.
+func (s *Server) currentSettings() config.Settings {
+	s.settingsMu.Lock()
+	defer s.settingsMu.Unlock()
+	return s.settings
+}
+
+// arrServices returns the media tool clients in use.
+func (s *Server) arrServices() *arr.Services {
+	return s.arr.Load()
 }
 
 // Handler returns the root HTTP handler with all routes and middlewares.
@@ -136,6 +176,20 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/events", s.authed(s.createEvent))
 	mux.HandleFunc("PATCH /api/v1/events/{eventId}", s.authed(s.updateEvent))
 	mux.HandleFunc("DELETE /api/v1/events/{eventId}", s.authed(s.deleteEvent))
+
+	// Admin section of the website.
+	mux.HandleFunc("GET /api/v1/admin/status", s.adminOnly(s.adminStatus))
+	mux.HandleFunc("GET /api/v1/admin/users", s.adminOnly(s.adminUsers))
+	mux.HandleFunc("PATCH /api/v1/admin/users/{userId}", s.adminOnly(s.adminUpdateUser))
+	mux.HandleFunc("POST /api/v1/admin/users/{userId}/reset-password", s.adminOnly(s.adminResetPassword))
+	mux.HandleFunc("DELETE /api/v1/admin/users/{userId}", s.adminOnly(s.adminDeleteUser))
+	mux.HandleFunc("GET /api/v1/admin/settings", s.adminOnly(s.adminGetSettings))
+	mux.HandleFunc("PUT /api/v1/admin/settings", s.adminOnly(s.adminPutSettings))
+	mux.HandleFunc("POST /api/v1/admin/settings/test", s.adminOnly(s.adminTestTool))
+
+	// Unknown API paths answer JSON; everything else is the website.
+	mux.HandleFunc("/api/", s.handle(func(w http.ResponseWriter, r *http.Request) error { return errNotFound }))
+	mux.Handle("/", s.website())
 
 	return s.recoverPanics(s.securityHeaders(s.limitRequests(s.logRequests(mux))))
 }
@@ -198,16 +252,28 @@ func (s *Server) recoverPanics(next http.Handler) http.Handler {
 	})
 }
 
+// Content-Security-Policy of the website: only its own files, images from
+// https (posters), and API calls to itself.
+const websiteCSP = "default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+
 func (s *Server) securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		header := w.Header()
 		header.Set("X-Content-Type-Options", "nosniff")
 		header.Set("X-Frame-Options", "DENY")
 		header.Set("Referrer-Policy", "no-referrer")
-		header.Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
-		header.Set("Cache-Control", "no-store")
+		if isAPIPath(r.URL.Path) {
+			header.Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+			header.Set("Cache-Control", "no-store")
+		} else {
+			header.Set("Content-Security-Policy", websiteCSP)
+		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func isAPIPath(path string) bool {
+	return strings.HasPrefix(path, "/api/") || path == "/healthz"
 }
 
 func (s *Server) limitRequests(next http.Handler) http.Handler {

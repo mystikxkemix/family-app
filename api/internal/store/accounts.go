@@ -2,9 +2,11 @@ package store
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
@@ -54,6 +56,54 @@ func (s *Store) UserByID(ctx context.Context, id bson.ObjectID) (*User, error) {
 // UpdateUser sets fields on a user and returns it.
 func (s *Store) UpdateUser(ctx context.Context, id bson.ObjectID, set bson.M) (*User, error) {
 	return updateOne[User](ctx, s.users, bson.M{"_id": id}, bson.M{"$set": set})
+}
+
+// AllUsers returns every account of the server, oldest first.
+func (s *Store) AllUsers(ctx context.Context) ([]User, error) {
+	return findAll[User](ctx, s.users, bson.M{}, options.Find().SetSort(bson.D{{Key: "createdAt", Value: 1}}))
+}
+
+// AllHouseholds returns every household of the server.
+func (s *Store) AllHouseholds(ctx context.Context) ([]Household, error) {
+	return findAll[Household](ctx, s.households, bson.M{})
+}
+
+// CountAdmins returns how many accounts are admins.
+func (s *Store) CountAdmins(ctx context.Context) (int64, error) {
+	return s.users.CountDocuments(ctx, bson.M{"isAdmin": true})
+}
+
+// OldestUser returns the first account created.
+func (s *Store) OldestUser(ctx context.Context) (*User, error) {
+	var user User
+	opts := options.FindOne().SetSort(bson.D{{Key: "createdAt", Value: 1}})
+	err := s.users.FindOne(ctx, bson.M{}, opts).Decode(&user)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// DeleteUser deletes an account with its sessions and push devices. What it
+// added (lists, items...) stays: it belongs to the household.
+func (s *Store) DeleteUser(ctx context.Context, id bson.ObjectID) error {
+	if err := deleteOne(ctx, s.users, bson.M{"_id": id}); err != nil {
+		return err
+	}
+	if _, err := s.sessions.DeleteMany(ctx, bson.M{"userId": id}); err != nil {
+		return err
+	}
+	_, err := s.devices.DeleteMany(ctx, bson.M{"userId": id})
+	return err
+}
+
+// DeleteUserSessions logs a user out everywhere.
+func (s *Store) DeleteUserSessions(ctx context.Context, userID bson.ObjectID) error {
+	_, err := s.sessions.DeleteMany(ctx, bson.M{"userId": userID})
+	return err
 }
 
 // HouseholdMembers returns the users of a household, oldest first.
