@@ -46,7 +46,15 @@ func run(log *slog.Logger) error {
 	}
 	defer st.Close(context.Background())
 
-	notifier, err := newNotifier(cfg, st, log)
+	settings, found, err := config.LoadSettings(cfg.SettingsFile)
+	if err != nil {
+		return err
+	}
+	if !found {
+		log.Info("no settings file: push and media tools are off", "path", cfg.SettingsFile)
+	}
+
+	notifier, err := newNotifier(settings, st, log)
 	if err != nil {
 		return err
 	}
@@ -56,7 +64,7 @@ func run(log *slog.Logger) error {
 		SessionTTL:     cfg.SessionTTL,
 		ClientIPHeader: cfg.ClientIPHeader,
 		Version:        version,
-		Arr:            arr.New(cfg.Radarr, cfg.Sonarr, cfg.Prowlarr),
+		Arr:            arr.New(settings.Radarr, settings.Sonarr, settings.Prowlarr),
 	})
 	if err != nil {
 		return err
@@ -74,7 +82,7 @@ func run(log *slog.Logger) error {
 	errs := make(chan error, 1)
 	go func() {
 		log.Info("listening", "port", cfg.Port, "version", version, "push", notifier.Enabled(),
-			"radarr", cfg.Radarr.Enabled(), "sonarr", cfg.Sonarr.Enabled(), "prowlarr", cfg.Prowlarr.Enabled())
+			"radarr", settings.Radarr.Enabled(), "sonarr", settings.Sonarr.Enabled(), "prowlarr", settings.Prowlarr.Enabled())
 		errs <- httpServer.ListenAndServe()
 	}()
 
@@ -92,22 +100,13 @@ func run(log *slog.Logger) error {
 	return nil
 }
 
-// newNotifier loads the APNs keys. Without a config file, push stays off.
-func newNotifier(cfg config.Config, st *store.Store, log *slog.Logger) (*push.Notifier, error) {
-	if cfg.APNSConfigFile == "" {
-		log.Info("push notifications off: APNS_CONFIG_FILE is not set")
+// newNotifier loads the APNs keys. Without keys in the settings, push is off.
+func newNotifier(settings config.Settings, st *store.Store, log *slog.Logger) (*push.Notifier, error) {
+	if len(settings.APNs.Credentials) == 0 {
+		log.Info("push notifications off: no APNs key in the settings file")
 		return push.NewNotifier(st, nil, log), nil
 	}
-	if _, err := os.Stat(cfg.APNSConfigFile); errors.Is(err, os.ErrNotExist) {
-		// The app store mounts an empty folder by default: no file means no push yet.
-		log.Warn("push notifications off: APNs config file not found", "path", cfg.APNSConfigFile)
-		return push.NewNotifier(st, nil, log), nil
-	}
-	apnsConfig, err := push.LoadConfig(cfg.APNSConfigFile)
-	if err != nil {
-		return nil, err
-	}
-	client, err := push.NewClient(apnsConfig)
+	client, err := push.NewClient(settings.APNs)
 	if err != nil {
 		return nil, err
 	}

@@ -1,14 +1,27 @@
-// Package config reads the API settings from environment variables.
+// Package config reads the API settings.
+//
+// Plain settings (port, database...) come from environment variables. Secrets
+// and addresses of other services (APNs keys, Radarr, Sonarr, Prowlarr) come
+// from a local JSON file, so they never show up in a container's environment.
 package config
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
+
+	"familyapp/internal/push"
 )
 
-// Config holds every runtime setting of the API.
+// DefaultSettingsFile is where the Docker image looks for the settings file.
+const DefaultSettingsFile = "/data/settings.json"
+
+// Config holds the plain runtime settings of the API.
 type Config struct {
 	// Port is the TCP port the HTTP server listens on.
 	Port string
@@ -23,29 +36,8 @@ type Config struct {
 	// X-Forwarded-For). Empty means "use the TCP peer address". Only set it when a
 	// proxy always overwrites this header, or clients can fake their IP.
 	ClientIPHeader string
-	// APNSConfigFile is the path of the APNs JSON config. Empty, or a missing
-	// file, disables push.
-	APNSConfigFile string
-	// Radarr, Sonarr and Prowlarr are optional media tools. Each one is off
-	// when its URL or API key is empty.
-	Radarr   ArrConfig
-	Sonarr   ArrConfig
-	Prowlarr ArrConfig
-}
-
-// ArrConfig is the address and key of one *arr tool.
-type ArrConfig struct {
-	URL    string
-	APIKey string
-	// QualityProfileID and RootFolder choose where Radarr/Sonarr add a title.
-	// Zero/empty means "the first one configured in the tool".
-	QualityProfileID int
-	RootFolder       string
-}
-
-// Enabled reports whether the tool has an address and a key.
-func (c ArrConfig) Enabled() bool {
-	return c.URL != "" && c.APIKey != ""
+	// SettingsFile is the path of the JSON settings file (see Settings).
+	SettingsFile string
 }
 
 // FromEnv builds the config from the environment, with defaults for local use.
@@ -57,43 +49,65 @@ func FromEnv() (Config, error) {
 	if ttlDays < 1 {
 		return Config{}, fmt.Errorf("SESSION_TTL_DAYS must be at least 1")
 	}
-	radarr, err := arrEnv("RADARR")
-	if err != nil {
-		return Config{}, err
-	}
-	sonarr, err := arrEnv("SONARR")
-	if err != nil {
-		return Config{}, err
-	}
-	prowlarr, err := arrEnv("PROWLARR")
-	if err != nil {
-		return Config{}, err
-	}
 	return Config{
-		Radarr:         radarr,
-		Sonarr:         sonarr,
-		Prowlarr:       prowlarr,
 		Port:           stringEnv("PORT", "8080"),
 		MongoURI:       stringEnv("MONGODB_URI", "mongodb://localhost:27017"),
 		MongoDB:        stringEnv("MONGODB_DB", "family-app"),
 		SessionTTL:     time.Duration(ttlDays) * 24 * time.Hour,
 		ClientIPHeader: os.Getenv("CLIENT_IP_HEADER"),
-		APNSConfigFile: os.Getenv("APNS_CONFIG_FILE"),
+		SettingsFile:   stringEnv("SETTINGS_FILE", DefaultSettingsFile),
 	}, nil
 }
 
-// arrEnv reads <PREFIX>_URL, _API_KEY, _QUALITY_PROFILE_ID and _ROOT_FOLDER.
-func arrEnv(prefix string) (ArrConfig, error) {
-	profile, err := intEnv(prefix+"_QUALITY_PROFILE_ID", 0)
-	if err != nil {
-		return ArrConfig{}, err
+// Settings is the content of the settings file. Every part is optional: a
+// missing part (or a missing file) turns that feature off.
+type Settings struct {
+	// APNs holds the push keys, one per Apple team.
+	APNs     push.Config `json:"apns"`
+	Radarr   ArrConfig   `json:"radarr"`
+	Sonarr   ArrConfig   `json:"sonarr"`
+	Prowlarr ArrConfig   `json:"prowlarr"`
+}
+
+// ArrConfig is the address and key of one *arr tool.
+type ArrConfig struct {
+	URL    string `json:"url"`
+	APIKey string `json:"apiKey"`
+	// QualityProfileID and RootFolder choose where Radarr/Sonarr add a title.
+	// Zero/empty means "the first one configured in the tool".
+	QualityProfileID int    `json:"qualityProfileId,omitempty"`
+	RootFolder       string `json:"rootFolder,omitempty"`
+}
+
+// Enabled reports whether the tool has an address and a key.
+func (c ArrConfig) Enabled() bool {
+	return c.URL != "" && c.APIKey != ""
+}
+
+// LoadSettings reads the settings file. A missing file is not an error: it
+// returns empty settings and found = false.
+func LoadSettings(path string) (settings Settings, found bool, err error) {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return Settings{}, false, nil
 	}
-	return ArrConfig{
-		URL:              os.Getenv(prefix + "_URL"),
-		APIKey:           os.Getenv(prefix + "_API_KEY"),
-		QualityProfileID: profile,
-		RootFolder:       os.Getenv(prefix + "_ROOT_FOLDER"),
-	}, nil
+	if err != nil {
+		return Settings{}, false, fmt.Errorf("read settings file: %w", err)
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	// A typo in a key must fail loudly, not silently turn a feature off.
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&settings); err != nil {
+		return Settings{}, true, fmt.Errorf("parse settings file %s: %w", path, err)
+	}
+	// APNs key files may be given relative to the settings file.
+	directory := filepath.Dir(path)
+	for i, credential := range settings.APNs.Credentials {
+		if credential.KeyFile != "" && !filepath.IsAbs(credential.KeyFile) {
+			settings.APNs.Credentials[i].KeyFile = filepath.Join(directory, credential.KeyFile)
+		}
+	}
+	return settings, true, nil
 }
 
 func stringEnv(key, fallback string) string {

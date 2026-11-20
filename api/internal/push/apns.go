@@ -35,22 +35,9 @@ type Credential struct {
 	Topics []string `json:"topics"`
 }
 
-// Config is the content of the APNs config file.
+// Config lists the APNs keys (the "apns" part of the settings file).
 type Config struct {
 	Credentials []Credential `json:"credentials"`
-}
-
-// LoadConfig reads the APNs JSON config file.
-func LoadConfig(path string) (Config, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return Config{}, fmt.Errorf("read APNs config: %w", err)
-	}
-	var config Config
-	if err := json.Unmarshal(data, &config); err != nil {
-		return Config{}, fmt.Errorf("parse APNs config: %w", err)
-	}
-	return config, nil
 }
 
 // APNs hosts per environment.

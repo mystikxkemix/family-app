@@ -9,7 +9,8 @@
 *.cer
 *.mobileprovision
 *.provisionprofile
-apns.json
+settings.json
+api/deploy/data/
 
 # API
 /api/family-api

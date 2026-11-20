@@ -1,0 +1,32 @@
+{
+  "apns": {
+    "credentials": [
+      {
+        "teamId": "TEAMID0001",
+        "keyId": "KEYID00001",
+        "keyFile": "apns/AuthKey_KEYID00001.p8",
+        "topics": ["com.example.family"]
+      },
+      {
+        "teamId": "TEAMID0002",
+        "keyId": "KEYID00002",
+        "keyFile": "apns/AuthKey_KEYID00002.p8",
+        "topics": ["com.example.family.second"]
+      }
+    ]
+  },
+  "radarr": {
+    "url": "http://radarr:7878",
+    "apiKey": "your-radarr-api-key",
+    "qualityProfileId": 0,
+    "rootFolder": ""
+  },
+  "sonarr": {
+    "url": "http://sonarr:8989",
+    "apiKey": "your-sonarr-api-key"
+  },
+  "prowlarr": {
+    "url": "http://prowlarr:9696",
+    "apiKey": "your-prowlarr-api-key"
+  }
+}

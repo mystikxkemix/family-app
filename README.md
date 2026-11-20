@@ -39,12 +39,33 @@ Or use the image `ghcr.io/mystikxkemix/family-api`, built by CI on each push to
 | `MONGODB_DB` | `family-app` | Database name. |
 | `SESSION_TTL_DAYS` | `180` | A login ends after this many days without use. |
 | `CLIENT_IP_HEADER` | empty | Header with the real client IP when behind a proxy (`X-Real-IP`, `CF-Connecting-IP`, `X-Forwarded-For`). Only set it if the proxy always writes this header. |
-| `APNS_CONFIG_FILE` | empty | APNs config file. Empty, or a missing file, means no push. |
-| `RADARR_URL`, `RADARR_API_KEY` | empty | Radarr, for movies. Off when empty. |
-| `RADARR_QUALITY_PROFILE_ID`, `RADARR_ROOT_FOLDER` | first one | Where Radarr adds movies. |
-| `SONARR_URL`, `SONARR_API_KEY` | empty | Sonarr (v4), for shows. Off when empty. |
-| `SONARR_QUALITY_PROFILE_ID`, `SONARR_ROOT_FOLDER` | first one | Where Sonarr adds shows. |
-| `PROWLARR_URL`, `PROWLARR_API_KEY` | empty | Prowlarr, for the interactive search. Off when empty. |
+| `SETTINGS_FILE` | `/data/settings.json` | The settings file with the secrets (see below). |
+
+### Settings file (secrets)
+
+Secrets and the addresses of other services are **not** environment
+variables: they live in one local JSON file, `settings.json`, in the `/data`
+folder of the container. Start from
+[`api/deploy/settings.example.json`](api/deploy/settings.example.json).
+Every part is optional: without the file, push and media tools are off.
+
+| Part | Content |
+|---|---|
+| `apns` | Push keys, one per Apple team (see Push notifications). |
+| `radarr` | `url`, `apiKey`, optional `qualityProfileId` and `rootFolder` (default: the first one in Radarr). |
+| `sonarr` | Same as Radarr, for shows (Sonarr v4). |
+| `prowlarr` | `url`, `apiKey`, for the interactive search. |
+
+The container runs as user `65532`, and the file holds secrets:
+
+```sh
+sudo chown -R 65532 /DATA/AppData/family-api/data
+sudo chmod 600 /DATA/AppData/family-api/data/settings.json
+```
+
+A wrong key name (for example `radar`) stops the API with an error, so a typo
+never turns a feature off without telling you. The API reads the file at
+start: restart it after a change.
 
 The API keys of Radarr, Sonarr and Prowlarr stay on the server: the app never
 sees them. Any member of the household can start a download.
@@ -88,11 +109,11 @@ The app can be signed by several teams, so the API takes one key per team.
 1. In each Apple developer account: **Certificates, Identifiers & Profiles >
    Keys > +**, enable **Apple Push Notifications service (APNs)**, download
    `AuthKey_<KEYID>.p8`.
-2. Put the `.p8` files and an `apns.json` next to each other, for example in
-   `/DATA/AppData/family-api/apns/` on the server. Format:
-   [`api/deploy/apns.example.json`](api/deploy/apns.example.json). `topics` are
-   the app bundle ids of that team.
-3. Mount the folder and set `APNS_CONFIG_FILE=/data/apns/apns.json`.
+2. Put the `.p8` files in the data folder, for example
+   `/DATA/AppData/family-api/data/apns/`.
+3. List them in the `apns` part of `settings.json`. A relative `keyFile` is
+   read from the folder of `settings.json`. `topics` are the app bundle ids of
+   that team.
 
 The app tells the API its bundle id and whether it is a development build
 (APNs sandbox) or a TestFlight/App Store build (production).
@@ -124,6 +145,20 @@ cp ios/Config/Signing/example.xcconfig ios/Config/Signing/me.xcconfig   # then f
 ios/Scripts/install.sh me    # builds and installs on the connected iPhone
 ```
 
+### UI tests
+
+```sh
+ios/Scripts/ui-test.sh              # default simulator: iPhone 17
+ios/Scripts/ui-test.sh "iPhone Air" # or another one
+```
+
+The script starts a throwaway MongoDB and API in Docker, writes the server
+address and the setup code to `ios/build/ui-test/settings.json` (a local file,
+read by the tests), and runs the tests in the simulator. The tests create the
+first account, then use every screen: lists, watchlist, places, events and
+settings, and check the tabs in French. Screenshots go to
+`ios/build/ui-test/screenshots`. Needs Docker; they do not run in CI.
+
 ### Languages
 
 English and French, in `ios/FamilyApp/Resources/Localizable.xcstrings`. The
@@ -134,5 +169,5 @@ the phone shows the text in its own language.
 
 The app store entry is in
 [mystikxkemix/zimaos-appstore](https://github.com/mystikxkemix/zimaos-appstore)
-(`Apps/family-api`). It uses the MongoDB of the ZimaOS host and the APNs folder
-`/DATA/AppData/family-api/apns`.
+(`Apps/family-api`). It uses the MongoDB of the ZimaOS host and the data folder
+`/DATA/AppData/family-api/data` (for `settings.json` and the APNs keys).
