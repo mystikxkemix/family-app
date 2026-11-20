@@ -22,6 +22,7 @@ struct ListDetailView: View {
                     Image(systemName: "plus.circle.fill")
                         .foregroundStyle(.tint)
                     TextField("Add an item", text: $newItemText)
+                        .accessibilityIdentifier("list.addItem")
                         .focused($isAddFieldFocused)
                         .submitLabel(.done)
                         .onSubmit(addItem)

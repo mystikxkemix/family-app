@@ -25,6 +25,7 @@ struct AuthView: View {
                 Section {
                     // Verbatim: a localized string turns the URL into a blue Markdown link.
                     TextField("Server", text: $server, prompt: Text(verbatim: "https://family.example.com"))
+                        .accessibilityIdentifier("auth.server")
                         .keyboardType(.URL)
                         .textContentType(.URL)
                         .textInputAutocapitalization(.never)
@@ -42,19 +43,23 @@ struct AuthView: View {
                         Text("First setup").tag(Mode.setup)
                     }
                     .pickerStyle(.segmented)
+                    .accessibilityIdentifier("auth.mode")
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
                 }
 
                 Section {
                     TextField("Username", text: $username)
+                        .accessibilityIdentifier("auth.username")
                         .textContentType(.username)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     SecureField("Password", text: $password)
+                        .accessibilityIdentifier("auth.password")
                         .textContentType(mode == .login ? .password : .newPassword)
                     if mode != .login {
                         TextField("Your first name", text: $displayName)
+                            .accessibilityIdentifier("auth.displayName")
                             .textContentType(.givenName)
                     }
                 } footer: {
@@ -66,6 +71,7 @@ struct AuthView: View {
                 if mode == .join {
                     Section {
                         TextField("Invite code", text: $code)
+                            .accessibilityIdentifier("auth.code")
                             .textInputAutocapitalization(.characters)
                             .autocorrectionDisabled()
                     } footer: {
@@ -76,9 +82,11 @@ struct AuthView: View {
                 if mode == .setup {
                     Section {
                         TextField("Setup code", text: $code)
+                            .accessibilityIdentifier("auth.code")
                             .textInputAutocapitalization(.characters)
                             .autocorrectionDisabled()
                         TextField("Household name", text: $householdName)
+                            .accessibilityIdentifier("auth.householdName")
                     } footer: {
                         Text("Only for the very first account. The setup code is in the API logs.")
                     }
@@ -103,6 +111,7 @@ struct AuthView: View {
                             Spacer()
                         }
                     }
+                    .accessibilityIdentifier("auth.submit")
                     .disabled(!canSubmit || isWorking)
                 }
             }

@@ -84,6 +84,7 @@ struct SettingsView: View {
                 LabeledContent("Invite code") {
                     Text(invite.code)
                         .font(.body.monospaced())
+                        .accessibilityIdentifier("settings.inviteCode")
                         .textSelection(.enabled)
                 }
                 Text("Valid until \(invite.expiresAt.formatted(date: .abbreviated, time: .shortened)), for one person.")
@@ -100,6 +101,7 @@ struct SettingsView: View {
                         }
                     }
                 }
+                .accessibilityIdentifier("settings.invite")
             }
         } header: {
             Text("Invite")

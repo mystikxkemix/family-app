@@ -30,6 +30,13 @@ final class AppSession {
     }
 
     init() {
+        #if DEBUG
+        // UI tests start from a logged-out app. Debug builds only.
+        if ProcessInfo.processInfo.arguments.contains("-uiTestReset") {
+            Keychain.delete(Self.tokenKey)
+            UserDefaults.standard.removeObject(forKey: Self.serverKey)
+        }
+        #endif
         serverURL = UserDefaults.standard.url(forKey: Self.serverKey)
         token = Keychain.read(Self.tokenKey)
     }

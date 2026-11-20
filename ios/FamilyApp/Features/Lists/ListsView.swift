@@ -39,6 +39,7 @@ struct ListsView: View {
             }
             .toolbar {
                 Button("New list", systemImage: "plus") { editing = .create }
+                    .accessibilityIdentifier("toolbar.add")
             }
             .sheet(item: $editing) { target in
                 ListEditor(target: target) { await load() }
@@ -123,6 +124,7 @@ struct ListEditor: View {
         NavigationStack {
             Form {
                 TextField("Name", text: $name)
+                    .accessibilityIdentifier("editor.name")
                 Picker("Type", selection: $kind) {
                     ForEach(ListKind.allCases) { kind in
                         Text(kind.title).tag(kind)
@@ -138,6 +140,7 @@ struct ListEditor: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save", action: save)
+                        .accessibilityIdentifier("editor.save")
                         .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
                 }
             }

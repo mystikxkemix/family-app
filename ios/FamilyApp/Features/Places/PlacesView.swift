@@ -25,6 +25,7 @@ struct PlacesView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    .accessibilityIdentifier("status.picker")
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
                 }
@@ -65,6 +66,7 @@ struct PlacesView: View {
             }
             .toolbar {
                 Button("Add", systemImage: "plus") { editing = .create }
+                    .accessibilityIdentifier("toolbar.add")
             }
             .sheet(item: $editing) { target in
                 PlaceEditor(target: target) { await load() }
@@ -221,6 +223,7 @@ struct PlaceEditor: View {
             Form {
                 Section {
                     TextField("Name", text: $name)
+                        .accessibilityIdentifier("editor.name")
                     Picker("Category", selection: $category) {
                         ForEach(PlaceCategory.allCases) { category in
                             Label { Text(category.title) } icon: { Image(systemName: category.symbol) }.tag(category)
@@ -248,6 +251,7 @@ struct PlaceEditor: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save", action: save)
+                        .accessibilityIdentifier("editor.save")
                         .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
                 }
             }

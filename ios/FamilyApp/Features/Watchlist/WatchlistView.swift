@@ -21,6 +21,7 @@ struct WatchlistView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    .accessibilityIdentifier("status.picker")
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
                 }
@@ -49,10 +50,12 @@ struct WatchlistView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Pick for us", systemImage: "dice", action: pickRandom)
+                        .accessibilityIdentifier("watchlist.pick")
                         .disabled(items.allSatisfy { $0.status != .toWatch })
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button("Add", systemImage: "plus") { editing = .create }
+                        .accessibilityIdentifier("toolbar.add")
                 }
             }
             .sheet(item: $editing) { target in
@@ -248,6 +251,7 @@ struct MediaEditor: View {
                         }
                         VStack {
                             TextField("Title", text: $title)
+                                .accessibilityIdentifier("editor.name")
                             TextField("Year (optional)", text: $year)
                                 .keyboardType(.numberPad)
                         }
@@ -267,6 +271,7 @@ struct MediaEditor: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save", action: save)
+                        .accessibilityIdentifier("editor.save")
                         .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
                 }
             }

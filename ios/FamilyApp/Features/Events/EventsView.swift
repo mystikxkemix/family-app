@@ -57,6 +57,7 @@ struct EventsView: View {
             }
             .toolbar {
                 Button("New event", systemImage: "plus") { editing = .create }
+                    .accessibilityIdentifier("toolbar.add")
             }
             .sheet(item: $editing) { target in
                 EventEditor(target: target) { await load() }
@@ -101,7 +102,10 @@ private struct EventRow: View {
             }
             .font(.subheadline.monospacedDigit())
             .foregroundStyle(.secondary)
-            .frame(width: 64, alignment: .leading)
+            // "10:00 PM" must stay on one line; the column grows if needed.
+            .lineLimit(1)
+            .fixedSize()
+            .frame(minWidth: 64, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(event.title).font(.headline)
@@ -152,6 +156,7 @@ struct EventEditor: View {
             Form {
                 Section {
                     TextField("Title", text: $title)
+                        .accessibilityIdentifier("editor.name")
                     TextField("Location", text: $location)
                 }
                 Section {
@@ -175,6 +180,7 @@ struct EventEditor: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save", action: save)
+                        .accessibilityIdentifier("editor.save")
                         .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
                 }
             }
