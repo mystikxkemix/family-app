@@ -5,13 +5,17 @@ description: Design the features in the "Idea" column of the Family app GitHub P
 
 # Design the Idea items
 
-Workflow and statuses: CLAUDE.md ("Project management"). The project number
-and gh account are in CLAUDE.local.md. All `gh` calls use the personal account:
+Workflow, statuses, project number and IDs: CLAUDE.md ("Project management"). All `gh` calls use the personal account:
 `export GH_TOKEN=$(gh auth token --user mystikxkemix)`.
 
 ## Steps
 
-1. List the items: `gh project item-list <number> --owner mystikxkemix --format json`
+1. Add the repo issues that are not in the Project yet (new ideas Mike opened),
+   with Status = Idea:
+   `gh issue list -R mystikxkemix/family-app --state open --json url,projectItems`
+   then, for each issue without a "Family app" project item,
+   `gh project item-add 4 --owner mystikxkemix --url <url>` and set Status = Idea.
+   Then list the items: `gh project item-list 4 --owner mystikxkemix --format json`
    and keep those with Status = Idea.
 2. For each item: move it to **Design** (see "Move an item" below), read the
    issue and its comments (`gh issue view <n> -R mystikxkemix/family-app --comments`).
@@ -37,9 +41,8 @@ Never start coding in this skill. Never move an item to Approved: Mike does.
 ## Move an item
 
 ```sh
-gh project field-list <number> --owner mystikxkemix --format json   # Status field id + option ids
-gh project item-edit --project-id <project-node-id> --id <item-id> \
-  --field-id <status-field-id> --single-select-option-id <option-id>
+gh project item-edit --project-id PVT_kwHOAJhrGs4BsjRn --id <item-id> \
+  --field-id PVTSSF_lAHOAJhrGs4BsjRnzhqw7Ts --single-select-option-id <option-id>
 ```
 
-The project node id: `gh project view <number> --owner mystikxkemix --format json -q .id`.
+Option ids are in CLAUDE.md. The item id comes from `gh project item-list`.
