@@ -3,6 +3,20 @@
 Go API (`api/`, with the website in `api/web/`) and SwiftUI iPhone app
 (`ios/`). See README.md for setup, settings and security.
 
+## Docs and skills (read the one for your task first)
+
+| Topic | File |
+|---|---|
+| Code layout, data model, API conventions, iOS and web structure | `.claude/docs/architecture.md` |
+| Release chain, server config, failures, git/gh from this Mac | `.claude/docs/operations.md` |
+| iOS build, signing, localization, UI test pitfalls | `.claude/docs/ios.md` |
+| Machine-specific values (server, devices, teams, accounts) | `CLAUDE.local.md` (gitignored, not in git) |
+
+Skills (`.claude/skills/`): `family-design` (Idea → design → To validate),
+`family-implement` (Approved → PR → In review), `family-feature` (checklist
+across layers), `family-verify` (all checks), `family-release` (deploy to the
+server), `family-install-phone`, `family-ui-tests`.
+
 ## Rules
 
 - The repository is public: never commit personal data (team ids, bundle ids

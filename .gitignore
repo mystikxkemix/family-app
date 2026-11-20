@@ -29,3 +29,11 @@ ios/Config/Signing/*.xcconfig
 
 # Claude Code local state
 .claude/settings.local.json
+
+# Website: node modules, and the build embedded in the API (only .gitkeep is committed)
+api/web/node_modules/
+api/internal/webui/dist/*
+!api/internal/webui/dist/.gitkeep
+
+# Machine-specific notes for Claude (server address, devices, teams)
+CLAUDE.local.md
