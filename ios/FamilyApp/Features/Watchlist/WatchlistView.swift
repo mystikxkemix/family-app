@@ -27,9 +27,9 @@ struct WatchlistView: View {
                 }
 
                 ForEach(visibleItems) { media in
-                    MediaRow(media: media)
-                        .contentShape(Rectangle())
-                        .onTapGesture { editing = .edit(media) }
+                    NavigationLink(value: media) {
+                        MediaRow(media: media)
+                    }
                         .swipeActions(edge: .leading) { statusActions(media) }
                         .swipeActions(edge: .trailing) {
                             Button("Delete", systemImage: "trash", role: .destructive) { delete(media) }
@@ -38,6 +38,9 @@ struct WatchlistView: View {
                 }
             }
             .navigationTitle("Watchlist")
+            .navigationDestination(for: Media.self) { media in
+                MediaDetailView(media: media) { await load() }
+            }
             .overlay {
                 if hasLoaded && visibleItems.isEmpty {
                     ContentUnavailableView {
@@ -193,8 +196,9 @@ private struct MediaRow: View {
     }
 }
 
-/// Adds or edits a movie or a show. When Radarr/Sonarr is set up on the
-/// server, a search fills the title, year, poster and ids.
+/// Adds or edits a movie or a show. When TMDB (or Radarr/Sonarr) is set up on
+/// the server, a search fills the title, year, poster and ids. Downloads and
+/// releases are on the details page.
 struct MediaEditor: View {
     enum Target: Identifiable {
         case create
@@ -224,10 +228,8 @@ struct MediaEditor: View {
     @State private var results: [MediaSearchResult] = []
     @State private var isSearching = false
     @State private var isSaving = false
-    @State private var downloadMessage: String?
 
-    private var integrations: Integrations? { session.me?.integrations }
-    private var canSearch: Bool { integrations?.library(for: kind) ?? false }
+    private var canSearch: Bool { session.me?.integrations.canSearch(kind) ?? false }
 
     var body: some View {
         NavigationStack {
@@ -258,10 +260,6 @@ struct MediaEditor: View {
                     }
                     TextField("Note (who recommended it, where to watch...)", text: $note, axis: .vertical)
                 }
-
-                if case .edit(let media) = target {
-                    toolsSection(media)
-                }
             }
             .navigationTitle(isNew ? "Add to watchlist" : "Edit")
             .navigationBarTitleDisplayMode(.inline)
@@ -275,12 +273,6 @@ struct MediaEditor: View {
                         .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
                 }
             }
-            .alert(
-                "Download",
-                isPresented: Binding(get: { downloadMessage != nil }, set: { if !$0 { downloadMessage = nil } }),
-                actions: { Button("OK", role: .cancel) {} },
-                message: { Text(downloadMessage ?? "") }
-            )
             .onAppear(perform: fill)
         }
         .presentationDetents([.large])
@@ -304,49 +296,11 @@ struct MediaEditor: View {
                 Button {
                     choose(result)
                 } label: {
-                    HStack(spacing: 12) {
-                        PosterView(url: result.posterUrl, kind: result.kind)
-                        VStack(alignment: .leading) {
-                            Text(result.title).foregroundStyle(.primary)
-                            if let year = result.year, year > 0 {
-                                Text(String(year)).font(.caption).foregroundStyle(.secondary)
-                            }
-                            if result.inLibrary {
-                                Text("Already in the library").font(.caption).foregroundStyle(.green)
-                            }
-                        }
-                    }
+                    SearchResultRow(result: result)
                 }
             }
         } footer: {
             Text("Pick a result to fill the title and the poster, or type them yourself below.")
-        }
-    }
-
-    @ViewBuilder
-    private func toolsSection(_ media: Media) -> some View {
-        let library = integrations?.library(for: media.kind) ?? false
-        let prowlarr = integrations?.prowlarr ?? false
-        if library || prowlarr {
-            Section {
-                if library {
-                    Button(media.kind == .movie ? LocalizedStringKey("Download with Radarr") : LocalizedStringKey("Download with Sonarr"),
-                           systemImage: "arrow.down.circle") {
-                        download(media)
-                    }
-                }
-                if prowlarr {
-                    NavigationLink {
-                        ReleasesView(kind: media.kind, initialQuery: releaseQuery(media))
-                    } label: {
-                        Label("Search releases (Prowlarr)", systemImage: "magnifyingglass")
-                    }
-                }
-            } footer: {
-                if media.downloadRequestedAt != nil {
-                    Text("Download already requested.")
-                }
-            }
         }
     }
 
@@ -374,7 +328,7 @@ struct MediaEditor: View {
             await session.run { api in
                 results = try await api.get(
                     "search/media",
-                    query: [URLQueryItem(name: "kind", value: kind.rawValue), URLQueryItem(name: "q", value: term)])
+                    query: [URLQueryItem(name: "kind", value: kind.rawValue), URLQueryItem(name: "q", value: term), AppLanguage.queryItem])
             }
             isSearching = false
         }
@@ -387,25 +341,6 @@ struct MediaEditor: View {
         overview = result.overview
         externalIds = result.externalIds
         results = []
-    }
-
-    private func releaseQuery(_ media: Media) -> String {
-        if let year = media.year, year > 0, media.kind == .movie {
-            return "\(media.title) \(year)"
-        }
-        return media.title
-    }
-
-    private func download(_ media: Media) {
-        Task {
-            await session.run { api in
-                let response: DownloadResponse = try await api.post("watchlist/\(media.id)/download")
-                downloadMessage = response.alreadyInLibrary
-                    ? String(localized: "This title is already in the library.")
-                    : String(localized: "Sent. The download will start soon.")
-            }
-            await onSave()
-        }
     }
 
     private func save() {

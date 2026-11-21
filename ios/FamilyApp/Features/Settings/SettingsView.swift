@@ -161,6 +161,10 @@ struct SettingsView: View {
                 LabeledContent("Server", value: server.host() ?? server.absoluteString)
             }
             LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?")
+            // Attribution asked by the TMDB API terms.
+            Text("This product uses the TMDB API but is not endorsed or certified by TMDB.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
         }
     }
 
