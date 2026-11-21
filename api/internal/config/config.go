@@ -44,6 +44,9 @@ type Config struct {
 	// ignored once an account exists.
 	AdminUsername string
 	AdminPassword string
+	// TMDBBaseURL replaces the TMDB API address. Development only (a local
+	// fake TMDB); leave it empty in production.
+	TMDBBaseURL string
 }
 
 // FromEnv builds the config from the environment, with defaults for local use.
@@ -64,6 +67,7 @@ func FromEnv() (Config, error) {
 		SettingsFile:   stringEnv("SETTINGS_FILE", DefaultSettingsFile),
 		AdminUsername:  stringEnv("ADMIN_USERNAME", "admin"),
 		AdminPassword:  os.Getenv("ADMIN_PASSWORD"),
+		TMDBBaseURL:    os.Getenv("TMDB_BASE_URL"),
 	}, nil
 }
 
@@ -75,6 +79,19 @@ type Settings struct {
 	Radarr   ArrConfig   `json:"radarr"`
 	Sonarr   ArrConfig   `json:"sonarr"`
 	Prowlarr ArrConfig   `json:"prowlarr"`
+	// TMDB gives movie and show details (see internal/tmdb).
+	TMDB TMDBConfig `json:"tmdb"`
+}
+
+// TMDBConfig is the key of The Movie Database: a v3 API key or a v4 read
+// access token.
+type TMDBConfig struct {
+	APIKey string `json:"apiKey"`
+}
+
+// Enabled reports whether a TMDB key is set.
+func (c TMDBConfig) Enabled() bool {
+	return c.APIKey != ""
 }
 
 // ArrConfig is the address and key of one *arr tool.

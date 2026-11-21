@@ -25,6 +25,7 @@ const paths: Record<string, string> = {
   copy: 'M8 8h12v12H8zM4 16V4h12',
   film: 'M4 5h16v14H4zM8 5v14M16 5v14M4 9h4M4 15h4M16 9h4M16 15h4',
   tv: 'M3 7h18v11H3zM8 21h8M8 3l4 4 4-4',
+  play: 'M7 5l12 7-12 7z',
 };
 
 export type IconName = keyof typeof paths;

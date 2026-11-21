@@ -8,6 +8,9 @@ struct User: Codable, Identifiable, Hashable, Sendable {
     var displayName: String
     /// True for the first (admin) account until it picks its own password.
     var mustChangePassword: Bool
+    /// Admins manage the server from the website. Optional: older servers
+    /// do not send it.
+    var isAdmin: Bool?
     let createdAt: Date
 }
 
@@ -27,15 +30,39 @@ struct MeResponse: Codable, Sendable {
     var integrations: Integrations
 }
 
-/// Which optional media tools the server has (Radarr, Sonarr, Prowlarr).
+/// Which optional media tools the server has (Radarr, Sonarr, Prowlarr, TMDB).
 struct Integrations: Codable, Hashable, Sendable {
     var radarr: Bool
     var sonarr: Bool
     var prowlarr: Bool
+    /// TMDB: title search and the details page.
+    var tmdb: Bool
+
+    init(radarr: Bool, sonarr: Bool, prowlarr: Bool, tmdb: Bool) {
+        self.radarr = radarr
+        self.sonarr = sonarr
+        self.prowlarr = prowlarr
+        self.tmdb = tmdb
+    }
+
+    /// Every flag is optional in the JSON, so an older server (without
+    /// "tmdb") still decodes.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        radarr = try container.decodeIfPresent(Bool.self, forKey: .radarr) ?? false
+        sonarr = try container.decodeIfPresent(Bool.self, forKey: .sonarr) ?? false
+        prowlarr = try container.decodeIfPresent(Bool.self, forKey: .prowlarr) ?? false
+        tmdb = try container.decodeIfPresent(Bool.self, forKey: .tmdb) ?? false
+    }
 
     /// Radarr for movies, Sonarr for shows.
     func library(for kind: MediaKind) -> Bool {
         kind == .movie ? radarr : sonarr
+    }
+
+    /// Whether the app can search titles for this kind (TMDB, else Radarr/Sonarr).
+    func canSearch(_ kind: MediaKind) -> Bool {
+        tmdb || library(for: kind)
     }
 }
 
@@ -177,6 +204,38 @@ struct MediaSearchResult: Codable, Hashable, Identifiable, Sendable {
     var inLibrary: Bool
 
     var id: String { "\(kind.rawValue)-\(externalIds.tmdb ?? 0)-\(externalIds.tvdb ?? 0)-\(title)" }
+}
+
+/// TMDB details of a watchlist title (GET watchlist/{id}/details).
+struct MediaDetails: Codable, Hashable, Sendable {
+    let tmdbId: Int
+    var tvdbId: Int?
+    var imdbId: String?
+    let kind: MediaKind
+    let title: String
+    let originalTitle: String
+    var year: Int?
+    var runtimeMinutes: Int?
+    var seasons: Int?
+    var episodes: Int?
+    let genres: [String]
+    let overview: String
+    /// TMDB user rating, 0 to 10.
+    let tmdbRating: Double
+    let tmdbVotes: Int
+    /// Directors of a movie, or creators of a show.
+    let directors: [String]
+    let cast: [CastMember]
+    var trailerUrl: String?
+    var posterUrl: String?
+    var backdropUrl: String?
+    let tmdbUrl: String
+}
+
+struct CastMember: Codable, Hashable, Sendable {
+    let name: String
+    let character: String
+    var photoUrl: String?
 }
 
 /// Answer of POST watchlist/{id}/download.

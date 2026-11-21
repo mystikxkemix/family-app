@@ -1,6 +1,56 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "%@/10 · %@ votes": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@/10 · %2$@ votes"
+          }
+        }
+      }
+    },
+    "%lld episodes": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld episode"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld episodes"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld épisode"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld épisodes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld left": {
       "localizations": {
         "en": {
@@ -41,6 +91,46 @@
         }
       }
     },
+    "%lld seasons": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld season"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld seasons"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld saison"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld saisons"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "About": {
       "localizations": {
         "fr": {
@@ -67,6 +157,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ajouter"
+          }
+        }
+      }
+    },
+    "Add a TMDB key in the Admin page of the website to see details.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajoutez une clé TMDB dans la page Admin du site pour voir les détails."
           }
         }
       }
@@ -261,12 +361,32 @@
         }
       }
     },
+    "Cast": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Distribution"
+          }
+        }
+      }
+    },
     "Category": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Catégorie"
+          }
+        }
+      }
+    },
+    "Change match": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changer la correspondance"
           }
         }
       }
@@ -321,6 +441,16 @@
         }
       }
     },
+    "Created by %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Créé par %@"
+          }
+        }
+      }
+    },
     "Current password": {
       "localizations": {
         "fr": {
@@ -337,6 +467,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Supprimer"
+          }
+        }
+      }
+    },
+    "Directed by %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réalisé par %@"
           }
         }
       }
@@ -517,6 +657,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tout le monde en a envie"
+          }
+        }
+      }
+    },
+    "Find the details": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trouver les détails"
           }
         }
       }
@@ -801,6 +951,16 @@
         }
       }
     },
+    "No details yet": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pas encore de détails"
+          }
+        }
+      }
+    },
     "No lists yet": {
       "localizations": {
         "fr": {
@@ -951,6 +1111,16 @@
         }
       }
     },
+    "Open on TMDB": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir sur TMDB"
+          }
+        }
+      }
+    },
     "Open website": {
       "localizations": {
         "fr": {
@@ -967,6 +1137,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Autre"
+          }
+        }
+      }
+    },
+    "Our list": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notre liste"
+          }
+        }
+      }
+    },
+    "Overview": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Synopsis"
           }
         }
       }
@@ -1007,6 +1197,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Choisir pour nous"
+          }
+        }
+      }
+    },
+    "Pick the right title": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choisir le bon titre"
           }
         }
       }
@@ -1057,6 +1257,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Restaurant"
+          }
+        }
+      }
+    },
+    "Retry": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réessayer"
           }
         }
       }
@@ -1311,12 +1521,32 @@
         }
       }
     },
+    "This product uses the TMDB API but is not endorsed or certified by TMDB.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce produit utilise l’API TMDB mais n’est ni approuvé ni certifié par TMDB."
+          }
+        }
+      }
+    },
     "This title is already in the library.": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Ce titre est déjà dans la bibliothèque."
+          }
+        }
+      }
+    },
+    "This title is not linked to TMDB yet.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce titre n’est pas encore lié à TMDB."
           }
         }
       }
@@ -1387,6 +1617,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Trop de tentatives. Attendez une minute et réessayez."
+          }
+        }
+      }
+    },
+    "Trailer": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bande-annonce"
           }
         }
       }

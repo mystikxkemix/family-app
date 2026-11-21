@@ -17,6 +17,7 @@ import (
 	"familyapp/internal/config"
 	"familyapp/internal/push"
 	"familyapp/internal/store"
+	"familyapp/internal/tmdb"
 )
 
 // maxBodyBytes caps request bodies. The app only sends small JSON documents.
@@ -34,6 +35,8 @@ type Options struct {
 	Settings config.Settings
 	// Admin is the first account, created when the database has no user.
 	Admin AdminAccount
+	// TMDBBaseURL replaces the TMDB API address (tests only).
+	TMDBBaseURL string
 }
 
 // AdminAccount is the first account, from the ADMIN_* environment variables.
@@ -56,6 +59,13 @@ type Server struct {
 	settingsMu sync.Mutex
 	settings   config.Settings
 	arr        atomic.Pointer[arr.Services]
+	// tmdb is nil when no TMDB key is set.
+	tmdb atomic.Pointer[tmdb.Client]
+
+	// Automatic TMDB matching (details.go).
+	matchTrigger chan struct{}
+	matchStop    chan struct{}
+	matchDone    chan struct{}
 
 	// requestLimiter limits every request per client IP.
 	requestLimiter *auth.Limiter
@@ -98,15 +108,30 @@ func New(ctx context.Context, st *store.Store, notifier *push.Notifier, log *slo
 	if err := s.ensureAdmin(ctx, options.Admin); err != nil {
 		return nil, err
 	}
+	s.startMatcher()
 	return s, nil
 }
 
 // applySettingsLocked switches to new settings: media tool clients and the
 // APNs client. The caller holds settingsMu.
 func (s *Server) applySettingsLocked(settings config.Settings, sender push.Sender) {
+	keyChanged := settings.TMDB.APIKey != s.settings.TMDB.APIKey
 	s.settings = settings
 	s.arr.Store(arr.New(settings.Radarr, settings.Sonarr, settings.Prowlarr))
 	s.notifier.SetSender(sender)
+	if !settings.TMDB.Enabled() {
+		s.tmdb.Store(nil)
+		return
+	}
+	client := tmdb.New(settings.TMDB.APIKey)
+	if s.options.TMDBBaseURL != "" {
+		client.WithBaseURL(s.options.TMDBBaseURL)
+	}
+	s.tmdb.Store(client)
+	if keyChanged {
+		// A new key: try again to link the titles without details.
+		s.triggerMatch()
+	}
 }
 
 // currentSettings returns a copy of the settings in use.
@@ -159,6 +184,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PATCH /api/v1/watchlist/{mediaId}", s.authed(s.updateMedia))
 	mux.HandleFunc("DELETE /api/v1/watchlist/{mediaId}", s.authed(s.deleteMedia))
 	mux.HandleFunc("POST /api/v1/watchlist/{mediaId}/download", s.authed(s.downloadMedia))
+	mux.HandleFunc("GET /api/v1/watchlist/{mediaId}/details", s.authed(s.mediaDetails))
+	mux.HandleFunc("POST /api/v1/watchlist/{mediaId}/match", s.authed(s.matchMedia))
 
 	// Media tools (Radarr, Sonarr, Prowlarr), when configured.
 	mux.HandleFunc("GET /api/v1/search/media", s.authed(s.searchMedia))

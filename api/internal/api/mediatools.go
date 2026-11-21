@@ -16,6 +16,8 @@ type integrations struct {
 	Radarr   bool `json:"radarr"`
 	Sonarr   bool `json:"sonarr"`
 	Prowlarr bool `json:"prowlarr"`
+	// TMDB gives search results and the details pages.
+	TMDB bool `json:"tmdb"`
 }
 
 func (s *Server) integrations() integrations {
@@ -24,6 +26,7 @@ func (s *Server) integrations() integrations {
 		Radarr:   services.Radarr != nil,
 		Sonarr:   services.Sonarr != nil,
 		Prowlarr: services.Prowlarr != nil,
+		TMDB:     s.tmdbClient() != nil,
 	}
 }
 
@@ -62,9 +65,19 @@ func (s *Server) searchMedia(w http.ResponseWriter, r *http.Request, caller prin
 	if err != nil {
 		return err
 	}
+	// TMDB first: it has every title, in the user's language. Radarr/Sonarr
+	// otherwise, as before.
+	if client := s.tmdbClient(); client != nil {
+		results, err := client.Search(r.Context(), kind, term, requestLanguage(r))
+		if err != nil {
+			return tmdbError(err)
+		}
+		writeJSON(w, http.StatusOK, results)
+		return nil
+	}
 	library := s.arrServices().Library(kind)
 	if library == nil {
-		return notConfigured(map[string]string{store.MediaKindMovie: "Radarr", store.MediaKindShow: "Sonarr"}[kind])
+		return notConfigured(map[string]string{store.MediaKindMovie: "Radarr or TMDB", store.MediaKindShow: "Sonarr or TMDB"}[kind])
 	}
 	results, err := library.Search(r.Context(), term)
 	if err != nil {

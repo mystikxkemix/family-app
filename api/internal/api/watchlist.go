@@ -139,6 +139,10 @@ func (s *Server) createMedia(w http.ResponseWriter, r *http.Request, caller prin
 	if err := s.store.CreateMedia(r.Context(), media); err != nil {
 		return err
 	}
+	if media.ExternalIDs.TMDB == 0 {
+		// Typed by hand: look for its TMDB details in the background.
+		s.triggerMatch()
+	}
 
 	kindLabel, bodyKey := "a movie", "push.media.movie.body"
 	if media.Kind == store.MediaKindShow {

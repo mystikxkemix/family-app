@@ -230,6 +230,15 @@ type adminArrSettings struct {
 	RootFolder       string `json:"rootFolder"`
 }
 
+// adminKeySettings is a tool that only needs a key (TMDB).
+type adminKeySettings struct {
+	// APIKey is only sent by the website; "" keeps the saved key.
+	APIKey    string `json:"apiKey,omitempty"`
+	APIKeySet bool   `json:"apiKeySet"`
+	// Remove deletes the saved key.
+	Remove bool `json:"remove,omitempty"`
+}
+
 type adminAPNsCredential struct {
 	TeamID string   `json:"teamId"`
 	KeyID  string   `json:"keyId"`
@@ -243,6 +252,7 @@ type adminSettings struct {
 	Radarr   adminArrSettings `json:"radarr"`
 	Sonarr   adminArrSettings `json:"sonarr"`
 	Prowlarr adminArrSettings `json:"prowlarr"`
+	TMDB     adminKeySettings `json:"tmdb"`
 	APNs     struct {
 		Credentials []adminAPNsCredential `json:"credentials"`
 	} `json:"apns"`
@@ -262,6 +272,7 @@ func masked(settings config.Settings) adminSettings {
 		Radarr:   maskedArr(settings.Radarr),
 		Sonarr:   maskedArr(settings.Sonarr),
 		Prowlarr: maskedArr(settings.Prowlarr),
+		TMDB:     adminKeySettings{APIKeySet: settings.TMDB.Enabled()},
 	}
 	result.APNs.Credentials = []adminAPNsCredential{}
 	for _, credential := range settings.APNs.Credentials {
@@ -306,6 +317,7 @@ func (s *Server) adminPutSettings(w http.ResponseWriter, r *http.Request, caller
 	if next.Prowlarr, err = mergeArr("prowlarr", request.Prowlarr, current.Prowlarr); err != nil {
 		return err
 	}
+	next.TMDB = mergeKey(request.TMDB, current.TMDB)
 	if next.APNs, err = s.mergeAPNs(request.APNs.Credentials, current.APNs); err != nil {
 		return err
 	}
@@ -350,6 +362,19 @@ func mergeArr(name string, request adminArrSettings, current config.ArrConfig) (
 		QualityProfileID: request.QualityProfileID,
 		RootFolder:       strings.TrimSpace(request.RootFolder),
 	}, nil
+}
+
+// mergeKey applies the website's change to a key-only tool: a new key,
+// "remove", or nothing ("" keeps the saved key).
+func mergeKey(request adminKeySettings, current config.TMDBConfig) config.TMDBConfig {
+	switch key := strings.TrimSpace(request.APIKey); {
+	case request.Remove:
+		return config.TMDBConfig{}
+	case key != "":
+		return config.TMDBConfig{APIKey: key}
+	default:
+		return current
+	}
 }
 
 // mergeAPNs validates the push keys and writes new .p8 files next to the
@@ -434,8 +459,12 @@ func (s *Server) adminTestTool(w http.ResponseWriter, r *http.Request, caller pr
 		if services.Prowlarr != nil {
 			ping = services.Prowlarr.Ping
 		}
+	case "tmdb":
+		if client := s.tmdbClient(); client != nil {
+			ping = client.Ping
+		}
 	default:
-		return badRequest("tool must be radarr, sonarr or prowlarr")
+		return badRequest("tool must be radarr, sonarr, prowlarr or tmdb")
 	}
 	if ping == nil {
 		writeJSON(w, http.StatusOK, testToolResponse{OK: false, Message: request.Tool + " is not configured"})

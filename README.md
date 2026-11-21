@@ -13,6 +13,7 @@ sends a push notification to the other members.
 |---|---|
 | Lists | Shared lists (groceries, to-do, other). Add items fast, tap to check, clear checked items. |
 | Watchlist | Movies and shows, with status (to watch, watching, watched) and who wants to watch. "Pick for us" chooses a title at random, titles that everyone wants first. |
+| Details | Each title has a details page from TMDB: synopsis, genres, length, TMDB rating, director and cast, trailer. Titles typed by hand are linked to TMDB automatically when the match is safe; "Change match" fixes a wrong one. |
 | Media tools | With Radarr/Sonarr: search a title to fill its poster, and send it to download. With Prowlarr: interactive search and manual grab. All optional. |
 | Places | Restaurants, bars, activities to try. Who wants to go, "tried" with a 1-5 rating, open in Maps. |
 | Events | Upcoming events grouped by day, with time, place and notes. "Add to my calendar" puts one in the iPhone calendar. |
@@ -75,6 +76,7 @@ Every part is optional: without the file, push and media tools are off.
 | `radarr` | `url`, `apiKey`, optional `qualityProfileId` and `rootFolder` (default: the first one in Radarr). |
 | `sonarr` | Same as Radarr, for shows (Sonarr v4). |
 | `prowlarr` | `url`, `apiKey`, for the interactive search. |
+| `tmdb` | `apiKey`: a TMDB API key or read access token (free, themoviedb.org > Settings > API). Search and details pages. |
 
 The container runs as user `65532`, and the file holds secrets:
 
@@ -200,3 +202,7 @@ The app store entry is in
 [mystikxkemix/zimaos-appstore](https://github.com/mystikxkemix/zimaos-appstore)
 (`Apps/family-api`). It uses the MongoDB of the ZimaOS host and the data folder
 `/DATA/AppData/family-api/data` (for `settings.json` and the APNs keys).
+
+## Credits
+
+This product uses the TMDB API but is not endorsed or certified by TMDB.

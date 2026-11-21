@@ -10,6 +10,7 @@ api/                      Go API (module "familyapp"), Docker image ghcr.io/myst
   internal/auth           Argon2id passwords, random tokens/codes, rate limiter
   internal/push           APNs client (ES256 JWT, stdlib) + Notifier (async, batching)
   internal/arr            Radarr / Sonarr / Prowlarr clients
+  internal/tmdb           TMDB client: search, details, safe automatic matching
   internal/api            HTTP: server.go (routes, middlewares), one file per area
   internal/webui          embeds the website build (dist/, only .gitkeep in git)
   web/                    website: React 19 + TypeScript + Vite, builds into internal/webui/dist
@@ -50,6 +51,23 @@ logout, push devices) and `isAdmin` (admin section of the website).
   iOS catalog in EN and FR.
 - Website: `website.go` serves `internal/webui` files, SPA fallback to
   index.html, its own CSP (`websiteCSP`); `/api/*` keeps the strict API CSP.
+
+## Movie details (TMDB)
+
+- `internal/tmdb`: v3 API; the key can be an API key (`api_key` param) or a
+  v4 read access token (Bearer). Language: `fr-FR` or `en-US` from `lang` /
+  `Accept-Language`. TMDB also gives the IMDb and TVDB ids: no TVDB or IMDb API.
+- `GET /watchlist/{id}/details` reads the `media_details` cache (one entry per
+  kind + TMDB id + language, TTL 30 days) before TMDB. `404 not_matched` when
+  the title has no TMDB id.
+- Automatic matching (`details.go`, `startMatcher`): a background goroutine
+  runs at start, after a title is added without a TMDB id, and after a new
+  TMDB key is saved. It keeps a match only if the normalized title (French,
+  English or original) is equal and the year is within ±1, and sets
+  `matchCheckedAt` either way so a title is tried once. `POST /watchlist/{id}/match`
+  is the manual fix ("Change match").
+- Local checks without a real key: `TMDB_BASE_URL` (dev only) points the API
+  to a fake TMDB server.
 
 ## iPhone app (ios/)
 

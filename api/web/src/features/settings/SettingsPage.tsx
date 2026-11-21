@@ -136,6 +136,11 @@ export function SettingsPage() {
         </button>
       </div>
 
+      <h2 className="section-title">{t('settings.about')}</h2>
+      <div className="card form-card">
+        <p className="muted small">{t('settings.tmdbAttribution')}</p>
+      </div>
+
       {changingPassword && <ChangePasswordDialog onClose={() => setChangingPassword(false)} />}
     </section>
   );

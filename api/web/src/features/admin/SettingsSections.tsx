@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useI18n } from '../../i18n';
 import { api } from '../../lib/api';
 import { useSession } from '../../lib/session';
-import type { AdminSettings, AdminSettingsInput, ArrTool, TestResult } from '../../lib/types';
+import type { AdminSettings, AdminSettingsInput, ArrTool, TestableTool, TestResult } from '../../lib/types';
 import { useFeedback } from '../../components/Feedback';
 import { Field, Loading } from '../../components/ui';
 import { Icon } from '../../components/Icon';
@@ -27,10 +27,18 @@ interface ApnsDraft {
   keySet: boolean;
 }
 
+interface TmdbDraft {
+  apiKey: string;
+  apiKeySet: boolean;
+  /** Delete the saved key on the next save. */
+  remove: boolean;
+}
+
 interface Draft {
   radarr: ArrDraft;
   sonarr: ArrDraft;
   prowlarr: ArrDraft;
+  tmdb: TmdbDraft;
   apns: ApnsDraft[];
 }
 
@@ -46,6 +54,7 @@ function toDraft(settings: AdminSettings): Draft {
     radarr: arr('radarr'),
     sonarr: arr('sonarr'),
     prowlarr: arr('prowlarr'),
+    tmdb: { apiKey: '', apiKeySet: settings.tmdb?.apiKeySet ?? false, remove: false },
     apns: settings.apns.credentials.map((credential) => ({
       teamId: credential.teamId,
       keyId: credential.keyId,
@@ -67,6 +76,7 @@ function toInput(draft: Draft): AdminSettingsInput {
     radarr: arr(draft.radarr),
     sonarr: arr(draft.sonarr),
     prowlarr: { url: draft.prowlarr.url.trim(), apiKey: draft.prowlarr.apiKey.trim() },
+    tmdb: draft.tmdb.remove ? { apiKey: '', remove: true } : { apiKey: draft.tmdb.apiKey.trim() },
     apns: {
       credentials: draft.apns.map((credential) => ({
         teamId: credential.teamId.trim(),
@@ -107,7 +117,7 @@ export function useAdminSettings() {
   }, [draft, refreshMe, run, showInfo, t]);
 
   const test = useCallback(
-    async (tool: ArrTool) => {
+    async (tool: TestableTool) => {
       await run(async () => {
         const result = await api.post<TestResult>('admin/settings/test', { tool });
         showInfo(result.ok ? `${t('admin.testOk')} — ${result.message}` : result.message);
@@ -129,6 +139,8 @@ export function MediaToolsSection({ settings }: { settings: AdminSettingsState }
 
   const update = (tool: ArrTool, patch: Partial<ArrDraft>) =>
     setDraft((current) => (current ? { ...current, [tool]: { ...current[tool], ...patch } } : current));
+  const updateTmdb = (patch: Partial<TmdbDraft>) =>
+    setDraft((current) => (current ? { ...current, tmdb: { ...current.tmdb, ...patch } } : current));
 
   return (
     <>
@@ -177,6 +189,34 @@ export function MediaToolsSection({ settings }: { settings: AdminSettingsState }
               </button>
             </fieldset>
           ))}
+        {draft && (
+          <fieldset className="tool">
+            <legend>TMDB</legend>
+            <p className="muted small">{t('admin.tmdbHelp')}</p>
+            <Field
+              label={t('admin.apiKey')}
+              hint={draft.tmdb.remove ? t('admin.tmdbRemoved') : draft.tmdb.apiKeySet ? t('admin.apiKeySaved') : undefined}
+            >
+              <input
+                type="password"
+                value={draft.tmdb.apiKey}
+                onChange={(e) => updateTmdb({ apiKey: e.target.value, remove: false })}
+                placeholder={draft.tmdb.apiKeySet ? '••••••••' : ''}
+                autoComplete="off"
+              />
+            </Field>
+            <div className="actions-row">
+              <button type="button" className="button" onClick={() => void test('tmdb')} disabled={!draft.tmdb.apiKeySet || draft.tmdb.remove}>
+                {t('admin.test')} TMDB
+              </button>
+              {draft.tmdb.apiKeySet && !draft.tmdb.remove && (
+                <button type="button" className="button button-danger" onClick={() => updateTmdb({ apiKey: '', remove: true })}>
+                  {t('admin.tmdbRemove')}
+                </button>
+              )}
+            </div>
+          </fieldset>
+        )}
         {draft && (
           <button type="button" className="button button-primary" onClick={() => void save()} disabled={busy}>
             {t('common.save')}

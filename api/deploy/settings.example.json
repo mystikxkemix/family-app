@@ -5,13 +5,17 @@
         "teamId": "TEAMID0001",
         "keyId": "KEYID00001",
         "keyFile": "apns/AuthKey_KEYID00001.p8",
-        "topics": ["com.example.family"]
+        "topics": [
+          "com.example.family"
+        ]
       },
       {
         "teamId": "TEAMID0002",
         "keyId": "KEYID00002",
         "keyFile": "apns/AuthKey_KEYID00002.p8",
-        "topics": ["com.example.family.second"]
+        "topics": [
+          "com.example.family.second"
+        ]
       }
     ]
   },
@@ -28,5 +32,8 @@
   "prowlarr": {
     "url": "http://prowlarr:9696",
     "apiKey": "your-prowlarr-api-key"
+  },
+  "tmdb": {
+    "apiKey": "your-tmdb-api-key-or-read-access-token"
   }
 }

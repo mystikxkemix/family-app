@@ -34,6 +34,8 @@ type Store struct {
 	media      *mongo.Collection
 	places     *mongo.Collection
 	events     *mongo.Collection
+	// mediaDetails caches TMDB details (public data, shared by households).
+	mediaDetails *mongo.Collection
 }
 
 // Open connects to MongoDB, checks the connection and creates the indexes.
@@ -48,18 +50,19 @@ func Open(ctx context.Context, uri, database string) (*Store, error) {
 	}
 	db := client.Database(database)
 	s := &Store{
-		client:     client,
-		db:         db,
-		households: db.Collection("households"),
-		users:      db.Collection("users"),
-		sessions:   db.Collection("sessions"),
-		invites:    db.Collection("invites"),
-		devices:    db.Collection("devices"),
-		lists:      db.Collection("lists"),
-		listItems:  db.Collection("list_items"),
-		media:      db.Collection("media"),
-		places:     db.Collection("places"),
-		events:     db.Collection("events"),
+		client:       client,
+		db:           db,
+		households:   db.Collection("households"),
+		users:        db.Collection("users"),
+		sessions:     db.Collection("sessions"),
+		invites:      db.Collection("invites"),
+		devices:      db.Collection("devices"),
+		lists:        db.Collection("lists"),
+		listItems:    db.Collection("list_items"),
+		media:        db.Collection("media"),
+		places:       db.Collection("places"),
+		mediaDetails: db.Collection("media_details"),
+		events:       db.Collection("events"),
 	}
 	if err := s.ensureIndexes(ctx); err != nil {
 		_ = client.Disconnect(context.Background())
@@ -117,6 +120,11 @@ func (s *Store) ensureIndexes(ctx context.Context) error {
 		},
 		s.places: {
 			{Keys: bson.D{{Key: "householdId", Value: 1}, {Key: "status", Value: 1}, {Key: "createdAt", Value: -1}}},
+		},
+		s.mediaDetails: {
+			{Keys: bson.D{{Key: "kind", Value: 1}, {Key: "tmdbId", Value: 1}, {Key: "lang", Value: 1}}, Options: unique()},
+			// Details are fetched again after 30 days: ratings change.
+			{Keys: bson.D{{Key: "fetchedAt", Value: 1}}, Options: options.Index().SetExpireAfterSeconds(int32(DetailsCacheTTL.Seconds()))},
 		},
 		s.events: {
 			{Keys: bson.D{{Key: "householdId", Value: 1}, {Key: "startsAt", Value: 1}}},
