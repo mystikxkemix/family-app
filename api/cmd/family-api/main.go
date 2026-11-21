@@ -65,10 +65,13 @@ func run(log *slog.Logger) error {
 		SettingsFile:   cfg.SettingsFile,
 		Settings:       settings,
 		Admin:          api.AdminAccount{Username: cfg.AdminUsername, Password: cfg.AdminPassword},
+		TMDBBaseURL:    cfg.TMDBBaseURL,
 	})
 	if err != nil {
 		return err
 	}
+
+	defer server.Close()
 
 	httpServer := &http.Server{
 		Addr:              ":" + cfg.Port,

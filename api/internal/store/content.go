@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -200,6 +201,57 @@ func (s *Store) DeletePlace(ctx context.Context, householdID, id bson.ObjectID) 
 // MediaByID returns one watchlist entry of a household.
 func (s *Store) MediaByID(ctx context.Context, householdID, id bson.ObjectID) (*Media, error) {
 	return findOne[Media](ctx, s.media, scoped(householdID, id))
+}
+
+// --- TMDB details cache and matching -------------------------------------------
+
+// DetailsCacheTTL is how long TMDB details are kept before being fetched again.
+const DetailsCacheTTL = 30 * 24 * time.Hour
+
+// CachedDetails returns the cached TMDB details (JSON) of a title in a
+// language, or ErrNotFound.
+func (s *Store) CachedDetails(ctx context.Context, kind string, tmdbID int, lang string) ([]byte, error) {
+	var entry struct {
+		Payload []byte `bson:"payload"`
+	}
+	err := s.mediaDetails.FindOne(ctx, bson.M{"kind": kind, "tmdbId": tmdbID, "lang": lang}).Decode(&entry)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return entry.Payload, nil
+}
+
+// SaveDetails stores TMDB details (JSON) in the cache.
+func (s *Store) SaveDetails(ctx context.Context, kind string, tmdbID int, lang string, payload []byte) error {
+	_, err := s.mediaDetails.UpdateOne(ctx,
+		bson.M{"kind": kind, "tmdbId": tmdbID, "lang": lang},
+		bson.M{"$set": bson.M{"payload": payload, "fetchedAt": Now()}},
+		options.UpdateOne().SetUpsert(true))
+	return err
+}
+
+// MediaToMatch returns titles of every household that have no TMDB id and
+// were never looked at by the automatic matching.
+func (s *Store) MediaToMatch(ctx context.Context, limit int64) ([]Media, error) {
+	filter := bson.M{
+		"matchCheckedAt": bson.M{"$exists": false},
+		"$or": bson.A{
+			bson.M{"externalIds.tmdb": bson.M{"$exists": false}},
+			bson.M{"externalIds.tmdb": 0},
+		},
+	}
+	return findAll[Media](ctx, s.media, filter, options.Find().SetLimit(limit).SetSort(bson.D{{Key: "createdAt", Value: 1}}))
+}
+
+// SetMediaMatch records the result of the automatic matching for a title.
+// The set may be empty (no safe match): the title is only marked as checked.
+func (s *Store) SetMediaMatch(ctx context.Context, id bson.ObjectID, set bson.M) error {
+	set["matchCheckedAt"] = Now()
+	_, err := s.media.UpdateOne(ctx, bson.M{"_id": id}, bson.M{"$set": set})
+	return err
 }
 
 // --- Events -------------------------------------------------------------------

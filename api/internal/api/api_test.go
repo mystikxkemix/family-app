@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -62,6 +63,8 @@ func newTestServerWith(t *testing.T, options Options) (*Server, *httptest.Server
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Cleanups run last-in first-out: the server stops before the database is dropped.
+	t.Cleanup(server.Close)
 	httpServer := httptest.NewServer(server.Handler())
 	t.Cleanup(httpServer.Close)
 	return server, httpServer
@@ -661,5 +664,174 @@ func TestWebsiteRoutes(t *testing.T) {
 	}
 	if csp := response.Header.Get("Content-Security-Policy"); !strings.Contains(csp, "default-src 'none'") {
 		t.Fatalf("API CSP: %s", csp)
+	}
+}
+
+// fakeTMDB answers search, details and configuration for one movie.
+func fakeTMDB(t *testing.T, detailCalls *atomic.Int32) *httptest.Server {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("api_key") != "tmdb-key" {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"status_message":"Invalid API key"}`))
+			return
+		}
+		switch r.URL.Path {
+		case "/configuration":
+			_, _ = w.Write([]byte(`{"images":{}}`))
+		case "/search/movie":
+			if strings.EqualFold(r.URL.Query().Get("query"), "arrival") || strings.EqualFold(r.URL.Query().Get("query"), "premier contact") {
+				// Like TMDB: the title is in the requested language.
+				title := "Arrival"
+				if r.URL.Query().Get("language") == "fr-FR" {
+					title = "Premier Contact"
+				}
+				_, _ = w.Write([]byte(`{"results":[{"id":329865,"title":"` + title + `","original_title":"Arrival","release_date":"2016-11-10","poster_path":"/p.jpg"}]}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"results":[]}`))
+		case "/movie/329865":
+			if detailCalls != nil {
+				detailCalls.Add(1)
+			}
+			title := "Arrival"
+			if r.URL.Query().Get("language") == "fr-FR" {
+				title = "Premier Contact"
+			}
+			_, _ = w.Write([]byte(`{"id":329865,"title":"` + title + `","original_title":"Arrival","release_date":"2016-11-10","runtime":116,"vote_average":7.58,"vote_count":18000,"poster_path":"/p.jpg","external_ids":{"imdb_id":"tt2543164"}}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"status_message":"not found"}`))
+		}
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+func TestMediaDetails(t *testing.T) {
+	var calls atomic.Int32
+	fake := fakeTMDB(t, &calls)
+	matchDelay = time.Millisecond
+	settings := config.Settings{TMDB: config.TMDBConfig{APIKey: "tmdb-key"}}
+	server, httpServer := newTestServerWith(t, Options{SessionTTL: time.Hour, Admin: testAdmin, Settings: settings, TMDBBaseURL: fake.URL})
+	alex := signUp(t, server, httpServer.URL)
+
+	var me meResponse
+	alex.call("GET", "/api/v1/me", nil, 200, &me)
+	if !me.Integrations.TMDB {
+		t.Fatal("integrations.tmdb must be true")
+	}
+
+	// Search goes to TMDB when it is set up.
+	var results []arr.SearchResult
+	alex.call("GET", "/api/v1/search/media?kind=movie&q=arrival&lang=en", nil, 200, &results)
+	if len(results) != 1 || results[0].ExternalIDs.TMDB != 329865 {
+		t.Fatalf("search: %+v", results)
+	}
+
+	// A title picked from the search: details in each language, cached.
+	var movie store.Media
+	alex.call("POST", "/api/v1/watchlist", map[string]any{"kind": "movie", "title": "Arrival", "externalIds": map[string]int{"tmdb": 329865}}, 201, &movie)
+	var details struct {
+		Title      string  `json:"title"`
+		TMDBRating float64 `json:"tmdbRating"`
+		IMDBID     string  `json:"imdbId"`
+	}
+	alex.call("GET", "/api/v1/watchlist/"+movie.ID.Hex()+"/details?lang=fr", nil, 200, &details)
+	if details.Title != "Premier Contact" || details.TMDBRating != 7.6 {
+		t.Fatalf("French details: %+v", details)
+	}
+	alex.call("GET", "/api/v1/watchlist/"+movie.ID.Hex()+"/details?lang=fr", nil, 200, &details)
+	alex.call("GET", "/api/v1/watchlist/"+movie.ID.Hex()+"/details?lang=en", nil, 200, &details)
+	if details.Title != "Arrival" || calls.Load() != 2 {
+		t.Fatalf("cache: title=%s TMDB detail calls=%d (want 2: fr once, en once)", details.Title, calls.Load())
+	}
+	// The details filled the IMDb id of the title.
+	var list []store.Media
+	alex.call("GET", "/api/v1/watchlist", nil, 200, &list)
+	if len(list) != 1 || list[0].ExternalIDs.IMDB != "tt2543164" {
+		t.Fatalf("ids not saved: %+v", list)
+	}
+
+	// A title typed by hand is linked automatically (safe match).
+	var typed store.Media
+	alex.call("POST", "/api/v1/watchlist", map[string]any{"kind": "movie", "title": "Premier contact", "year": 2016}, 201, &typed)
+	var unknown store.Media
+	alex.call("POST", "/api/v1/watchlist", map[string]any{"kind": "movie", "title": "Our holiday video"}, 201, &unknown)
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		// A fresh slice each time: decoding into the old one keeps omitted fields.
+		var current []store.Media
+		alex.call("GET", "/api/v1/watchlist", nil, 200, &current)
+		list = current
+		linked := 0
+		for _, media := range list {
+			if media.ID == typed.ID && media.ExternalIDs.TMDB == 329865 && media.PosterURL != "" {
+				linked++
+			}
+		}
+		if linked == 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("automatic match did not happen: %+v", list)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	// No safe match: not linked, details answer not_matched.
+	var failure map[string]string
+	alex.call("GET", "/api/v1/watchlist/"+unknown.ID.Hex()+"/details", nil, 404, &failure)
+	if failure["code"] != "not_matched" {
+		t.Fatalf("want not_matched, got %v", failure)
+	}
+
+	// Manual match ("Find the details").
+	var matched store.Media
+	alex.call("POST", "/api/v1/watchlist/"+unknown.ID.Hex()+"/match", map[string]int{"tmdbId": 329865}, 200, &matched)
+	if matched.ExternalIDs.TMDB != 329865 || matched.Title != "Our holiday video" || matched.Year != 2016 {
+		t.Fatalf("match must keep the title and fill ids/year: %+v", matched)
+	}
+	alex.call("POST", "/api/v1/watchlist/"+unknown.ID.Hex()+"/match", map[string]int{"tmdbId": 0}, 400, nil)
+	strangerClient(t, server, httpServer.URL).call("GET", "/api/v1/watchlist/"+movie.ID.Hex()+"/details", nil, 404, nil)
+}
+
+func TestMediaDetailsNotConfigured(t *testing.T) {
+	server, httpServer := newTestServer(t)
+	alex := signUp(t, server, httpServer.URL)
+	var movie store.Media
+	alex.call("POST", "/api/v1/watchlist", map[string]any{"kind": "movie", "title": "Arrival", "externalIds": map[string]int{"tmdb": 1}}, 201, &movie)
+	alex.call("GET", "/api/v1/watchlist/"+movie.ID.Hex()+"/details", nil, 503, nil)
+	alex.call("POST", "/api/v1/watchlist/"+movie.ID.Hex()+"/match", map[string]int{"tmdbId": 1}, 503, nil)
+}
+
+func TestAdminTMDBKey(t *testing.T) {
+	fake := fakeTMDB(t, nil)
+	settingsFile := filepath.Join(t.TempDir(), "settings.json")
+	server, httpServer := newTestServerWith(t, Options{SessionTTL: time.Hour, Admin: testAdmin, SettingsFile: settingsFile, TMDBBaseURL: fake.URL})
+	alex := signUp(t, server, httpServer.URL)
+	body := map[string]any{"radarr": map[string]any{"url": ""}, "sonarr": map[string]any{"url": ""}, "prowlarr": map[string]any{"url": ""},
+		"tmdb": map[string]any{"apiKey": "tmdb-key"}, "apns": map[string]any{"credentials": []any{}}}
+	var saved adminSettings
+	alex.call("PUT", "/api/v1/admin/settings", body, 200, &saved)
+	if !saved.TMDB.APIKeySet || saved.TMDB.APIKey != "" {
+		t.Fatalf("tmdb settings: %+v", saved.TMDB)
+	}
+	var test testToolResponse
+	alex.call("POST", "/api/v1/admin/settings/test", map[string]string{"tool": "tmdb"}, 200, &test)
+	if !test.OK {
+		t.Fatalf("tmdb test: %+v", test)
+	}
+	// "" keeps the key; remove deletes it.
+	body["tmdb"] = map[string]any{"apiKey": ""}
+	alex.call("PUT", "/api/v1/admin/settings", body, 200, &saved)
+	if !saved.TMDB.APIKeySet {
+		t.Fatal("an empty key must keep the saved one")
+	}
+	body["tmdb"] = map[string]any{"remove": true}
+	alex.call("PUT", "/api/v1/admin/settings", body, 200, &saved)
+	var me meResponse
+	alex.call("GET", "/api/v1/me", nil, 200, &me)
+	if saved.TMDB.APIKeySet || me.Integrations.TMDB {
+		t.Fatal("remove must delete the key and turn TMDB off")
 	}
 }

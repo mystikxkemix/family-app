@@ -143,6 +143,9 @@ type Media struct {
 	ExternalIDs       ExternalIDs     `bson:"externalIds" json:"externalIds"`
 	AddedBy           bson.ObjectID   `bson:"addedBy" json:"addedBy"`
 	WatchedAt         *time.Time      `bson:"watchedAt,omitempty" json:"watchedAt,omitempty"`
+	// MatchCheckedAt is when the automatic TMDB matching looked at this title
+	// (matched or not), so it is not searched again and again.
+	MatchCheckedAt *time.Time `bson:"matchCheckedAt,omitempty" json:"-"`
 	// DownloadRequestedAt is when someone sent it to Radarr or Sonarr.
 	DownloadRequestedAt *time.Time `bson:"downloadRequestedAt,omitempty" json:"downloadRequestedAt,omitempty"`
 	CreatedAt           time.Time  `bson:"createdAt" json:"createdAt"`
