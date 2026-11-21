@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { useI18n } from '../../i18n';
 import { api } from '../../lib/api';
-import { useLoader } from '../../lib/hooks';
+import { navigate, useLoader } from '../../lib/hooks';
 import { useMe } from '../../lib/session';
 import { mediaStatuses, type Media, type MediaStatus } from '../../lib/types';
 import { useFeedback } from '../../components/Feedback';
 import { EmptyState, IconButton, Loading, Modal, PageHeader, Segmented } from '../../components/ui';
 import { Icon } from '../../components/Icon';
 import { InterestLine } from '../../components/InterestLine';
-import { MediaEditor, Poster } from './MediaEditor';
+import { MediaEditor } from './MediaEditor';
+import { Poster } from './Poster';
 
 /** Movies and shows to watch together. */
 export function WatchlistPage() {
@@ -17,7 +18,7 @@ export function WatchlistPage() {
   const { run } = useFeedback();
   const items = useLoader(() => api.get<Media[]>('watchlist'));
   const [status, setStatus] = useState<MediaStatus>('toWatch');
-  const [editing, setEditing] = useState<Media | 'new'>();
+  const [adding, setAdding] = useState(false);
   const [pick, setPick] = useState<Media>();
 
   const visible = (items.data ?? []).filter((media) => media.status === status);
@@ -54,7 +55,7 @@ export function WatchlistPage() {
               compact
               disabled={!(items.data ?? []).some((media) => media.status === 'toWatch')}
             />
-            <IconButton icon="plus" label={t('wl.add')} kind="primary" onClick={() => setEditing('new')} compact />
+            <IconButton icon="plus" label={t('wl.add')} kind="primary" onClick={() => setAdding(true)} compact />
           </>
         }
       />
@@ -71,7 +72,7 @@ export function WatchlistPage() {
           const interested = media.interestedUserIds.includes(me.user.id);
           return (
             <li key={media.id} className="card row-card">
-              <button type="button" className="row-main" onClick={() => setEditing(media)}>
+              <button type="button" className="row-main" onClick={() => navigate(`/watchlist/${media.id}`)}>
                 <Poster url={media.posterUrl} kind={media.kind} />
                 <span className="row-text">
                   <strong>
@@ -117,7 +118,7 @@ export function WatchlistPage() {
           );
         })}
       </ul>
-      {editing && <MediaEditor media={editing === 'new' ? undefined : editing} onClose={() => setEditing(undefined)} onSaved={items.reload} />}
+      {adding && <MediaEditor onClose={() => setAdding(false)} onSaved={items.reload} />}
       {pick && (
         <Modal
           title={t('wl.pickTitle')}

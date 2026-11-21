@@ -36,6 +36,8 @@ export function StatusSection() {
               <dd>{onOff(data.integrations.sonarr)}</dd>
               <dt>Prowlarr</dt>
               <dd>{onOff(data.integrations.prowlarr)}</dd>
+              <dt>TMDB</dt>
+              <dd>{onOff(data.integrations.tmdb)}</dd>
               <dt>{t('admin.settingsFile')}</dt>
               <dd>
                 <code>{data.settingsFile}</code> ({data.settingsFound ? t('admin.settingsFound') : t('admin.settingsMissing')})

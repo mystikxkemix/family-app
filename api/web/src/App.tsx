@@ -9,6 +9,7 @@ import { ChoosePasswordPage } from './features/auth/ChoosePasswordPage';
 import { ListsPage } from './features/lists/ListsPage';
 import { ListDetailPage } from './features/lists/ListDetailPage';
 import { WatchlistPage } from './features/watchlist/WatchlistPage';
+import { MediaDetailPage } from './features/watchlist/MediaDetailPage';
 import { PlacesPage } from './features/places/PlacesPage';
 import { EventsPage } from './features/events/EventsPage';
 import { SettingsPage } from './features/settings/SettingsPage';
@@ -85,6 +86,8 @@ function Shell({ isAdmin }: { isAdmin: boolean }) {
 function Route({ path }: { path: string }) {
   const listMatch = /^\/lists\/([0-9a-f]{24})$/.exec(path);
   if (listMatch) return <ListDetailPage listId={listMatch[1]} />;
+  const mediaMatch = /^\/watchlist\/([0-9a-f]{24})$/.exec(path);
+  if (mediaMatch) return <MediaDetailPage mediaId={mediaMatch[1]} />;
   switch (path) {
     case '/watchlist':
       return <WatchlistPage />;

@@ -959,3 +959,123 @@ textarea {
   align-self: center;
   border-radius: 16px;
 }
+
+/* --- Watchlist title details ------------------------------------------------ */
+
+.media-detail .backdrop-image {
+  margin: 4px 0 -56px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  aspect-ratio: 16 / 7;
+  background: var(--surface-2);
+}
+
+.media-detail .backdrop-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  /* Fades into the page so the poster can sit over it. */
+  mask-image: linear-gradient(to bottom, black 55%, transparent);
+}
+
+.detail-hero {
+  position: relative;
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  margin: 12px 0 16px;
+  padding: 0 8px;
+}
+
+.detail-hero .poster.large {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.detail-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.detail-title {
+  font-size: 1.3rem;
+  line-height: 1.25;
+}
+
+.rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--accent-deep);
+}
+
+.detail-overview {
+  line-height: 1.55;
+  margin: 0 0 12px;
+}
+
+.cast-row {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0 0 6px;
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+}
+
+.cast-row li {
+  flex: 0 0 92px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.cast-row .small {
+  overflow-wrap: anywhere;
+}
+
+.cast-photo {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.cast-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.interest-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-note {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+a.button {
+  text-decoration: none;
+}
+
+@media (max-width: 520px) {
+  .detail-hero .poster.large {
+    width: 96px;
+    height: 144px;
+  }
+}

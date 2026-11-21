@@ -19,6 +19,8 @@ export interface Integrations {
   radarr: boolean;
   sonarr: boolean;
   prowlarr: boolean;
+  /** TMDB: title search and the details page. */
+  tmdb: boolean;
 }
 
 export interface Me {
@@ -110,6 +112,38 @@ export interface MediaSearchResult {
   inLibrary: boolean;
 }
 
+export interface CastMember {
+  name: string;
+  character: string;
+  photoUrl?: string;
+}
+
+/** Details from TMDB, in the language asked for (GET watchlist/{id}/details). */
+export interface MediaDetails {
+  tmdbId: number;
+  tvdbId?: number;
+  imdbId?: string;
+  kind: MediaKind;
+  title: string;
+  originalTitle: string;
+  year?: number;
+  runtimeMinutes?: number;
+  seasons?: number;
+  episodes?: number;
+  genres: string[];
+  overview: string;
+  /** TMDB users' average, 0 to 10. */
+  tmdbRating: number;
+  tmdbVotes: number;
+  /** Directors for a movie, creators for a show. */
+  directors: string[];
+  cast: CastMember[];
+  trailerUrl?: string;
+  posterUrl?: string;
+  backdropUrl?: string;
+  tmdbUrl: string;
+}
+
 export interface DownloadResponse {
   media: Media;
   alreadyInLibrary: boolean;
@@ -190,6 +224,8 @@ export interface AdminUser {
 }
 
 export type ArrTool = 'radarr' | 'sonarr' | 'prowlarr';
+/** Tools with a connection test in the admin page. */
+export type TestableTool = ArrTool | 'tmdb';
 
 /** One media tool as the API shows it: the key itself is never sent back. */
 export interface ArrSettings {
@@ -210,6 +246,7 @@ export interface AdminSettings {
   radarr: ArrSettings;
   sonarr: ArrSettings;
   prowlarr: ArrSettings;
+  tmdb: { apiKeySet: boolean };
   apns: { credentials: ApnsCredential[] };
 }
 
@@ -232,6 +269,8 @@ export interface AdminSettingsInput {
   radarr: ArrSettingsInput;
   sonarr: ArrSettingsInput;
   prowlarr: ArrSettingsInput;
+  /** "" keeps the saved key; remove deletes it. */
+  tmdb: { apiKey: string; remove?: boolean };
   apns: { credentials: ApnsCredentialInput[] };
 }
 
