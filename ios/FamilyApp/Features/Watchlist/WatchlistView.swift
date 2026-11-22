@@ -3,6 +3,7 @@ import SwiftUI
 /// Movies and TV shows to watch together.
 struct WatchlistView: View {
     @Environment(AppSession.self) private var session
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var items: [Media] = []
     @State private var status = MediaStatus.toWatch
     @State private var hasLoaded = false
@@ -13,28 +14,11 @@ struct WatchlistView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    Picker("Status", selection: $status) {
-                        ForEach(MediaStatus.allCases) { status in
-                            Text(status.title).tag(status)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .accessibilityIdentifier("status.picker")
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets())
-                }
-
-                ForEach(visibleItems) { media in
-                    NavigationLink(value: media) {
-                        MediaRow(media: media)
-                    }
-                        .swipeActions(edge: .leading) { statusActions(media) }
-                        .swipeActions(edge: .trailing) {
-                            Button("Delete", systemImage: "trash", role: .destructive) { delete(media) }
-                            interestButton(media)
-                        }
+            Group {
+                if sizeClass == .regular {
+                    posterGrid
+                } else {
+                    rowList
                 }
             }
             .navigationTitle("Watchlist")
@@ -59,6 +43,10 @@ struct WatchlistView: View {
                 ToolbarItem(placement: .primaryAction) {
                     Button("Add", systemImage: "plus") { editing = .create }
                         .accessibilityIdentifier("toolbar.add")
+                        .keyboardShortcut("n", modifiers: .command)
+                }
+                ToolbarItem(placement: .secondaryAction) {
+                    WideRefreshButton { await load() }
                 }
             }
             .sheet(item: $editing) { target in
@@ -78,6 +66,63 @@ struct WatchlistView: View {
             .refreshable { await load() }
             .task { await load() }
             .onFamilyDataChanged { await load() }
+        }
+    }
+
+    private var statusPicker: some View {
+        Picker("Status", selection: $status) {
+            ForEach(MediaStatus.allCases) { status in
+                Text(status.title).tag(status)
+            }
+        }
+        .pickerStyle(.segmented)
+        .accessibilityIdentifier("status.picker")
+    }
+
+    /// iPhone (compact width): one row per title, with swipe actions.
+    private var rowList: some View {
+        List {
+            Section {
+                statusPicker
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+            }
+
+            ForEach(visibleItems) { media in
+                NavigationLink(value: media) {
+                    MediaRow(media: media)
+                }
+                .swipeActions(edge: .leading) { statusActions(media) }
+                .swipeActions(edge: .trailing) {
+                    Button("Delete", systemImage: "trash", role: .destructive) { delete(media) }
+                    interestButton(media)
+                }
+            }
+        }
+    }
+
+    /// iPad (regular width): a grid of posters. A grid has no swipe actions,
+    /// so the same actions are in the long-press menu.
+    private var posterGrid: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                statusPicker
+                    .frame(maxWidth: 480)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 150, maximum: 210), spacing: 20)], spacing: 24) {
+                    ForEach(visibleItems) { media in
+                        NavigationLink(value: media) {
+                            MediaGridCell(media: media)
+                        }
+                        .buttonStyle(.plain)
+                        .contextMenu {
+                            statusActions(media)
+                            interestButton(media)
+                            Button("Delete", systemImage: "trash", role: .destructive) { delete(media) }
+                        }
+                    }
+                }
+            }
+            .padding(20)
         }
     }
 
@@ -162,6 +207,46 @@ struct PosterView: View {
         }
         .frame(width: 44, height: 66)
         .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+}
+
+/// A big poster with the title under it, for the iPad grid.
+private struct MediaGridCell: View {
+    let media: Media
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Group {
+                if let url = media.posterUrl, let imageURL = URL(string: url) {
+                    AsyncImage(url: imageURL) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: {
+                        Color.secondary.opacity(0.15)
+                    }
+                } else {
+                    ZStack {
+                        Color.secondary.opacity(0.12)
+                        Image(systemName: media.kind.symbol)
+                            .font(.largeTitle)
+                            .foregroundStyle(.tint)
+                    }
+                }
+            }
+            .aspectRatio(2 / 3, contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .shadow(color: .black.opacity(0.12), radius: 4, y: 2)
+
+            Text(media.title)
+                .font(.headline)
+                .lineLimit(2)
+            if let year = media.year, year > 0 {
+                Text(String(year))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            InterestLine(userIds: media.interestedUserIds)
+        }
+        .contentShape(Rectangle())
     }
 }
 

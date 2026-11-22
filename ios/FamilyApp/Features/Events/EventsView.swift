@@ -42,6 +42,7 @@ struct EventsView: View {
                     }
                 }
             }
+            .readableContentWidth()
             .navigationTitle("Events")
             .overlay {
                 if hasLoaded && events.isEmpty {
@@ -56,8 +57,14 @@ struct EventsView: View {
                 }
             }
             .toolbar {
-                Button("New event", systemImage: "plus") { editing = .create }
-                    .accessibilityIdentifier("toolbar.add")
+                ToolbarItem(placement: .primaryAction) {
+                    Button("New event", systemImage: "plus") { editing = .create }
+                        .accessibilityIdentifier("toolbar.add")
+                        .keyboardShortcut("n", modifiers: .command)
+                }
+                ToolbarItem(placement: .secondaryAction) {
+                    WideRefreshButton { await load() }
+                }
             }
             .sheet(item: $editing) { target in
                 EventEditor(target: target) { await load() }

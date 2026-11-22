@@ -23,7 +23,9 @@ description: Run the Family app UI tests in the simulator against a throwaway AP
 
    The UI tree at failure: `xcrun xcresulttool export attachments --path ... --output-path <dir>`,
    then the `.txt` attachment that starts with `Application,`.
-3. Screenshots: `ios/build/ui-test/screenshots/*.png` (step name in the file name).
+3. Screenshots: `ios/build/ui-test/screenshots/<device type>/*.png` (step name
+   in the file name). Run on iPad with `ios/Scripts/ui-test.sh "iPad Pro 11-inch (M5)"`,
+   one device type at a time.
 4. Stuck run (no new screenshot for 2 minutes): stop it
    (`pkill -f "Scripts/ui-test.sh"; pkill -f "xcodebuild test -project FamilyApp"`)
    and remove the containers (`docker rm -f family-uitest-api family-uitest-mongo`).

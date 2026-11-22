@@ -3,6 +3,8 @@ import SwiftUI
 /// The items of one list: add quickly, tap to check, swipe to delete.
 struct ListDetailView: View {
     let list: SharedList
+    /// Called after the items changed (the iPad shows the counts next to it).
+    var onChange: (() async -> Void)?
 
     @Environment(AppSession.self) private var session
     @State private var items: [ListItem] = []
@@ -64,7 +66,10 @@ struct ListDetailView: View {
     private func deleteButton(_ item: ListItem) -> some View {
         Button("Delete", systemImage: "trash", role: .destructive) {
             items.removeAll { $0.id == item.id }
-            Task { await session.run { api in try await api.delete("lists/\(list.id)/items/\(item.id)") } }
+            Task {
+                await session.run { api in try await api.delete("lists/\(list.id)/items/\(item.id)") }
+                await onChange?()
+            }
         }
     }
 
@@ -85,6 +90,7 @@ struct ListDetailView: View {
                 let item: ListItem = try await api.post("lists/\(list.id)/items", ["text": .string(text)])
                 items.append(item)
             }
+            await onChange?()
         }
     }
 
@@ -104,6 +110,7 @@ struct ListDetailView: View {
                 }
             }
             if !saved { await load() }
+            await onChange?()
         }
     }
 
@@ -113,6 +120,7 @@ struct ListDetailView: View {
             await session.run { api in
                 let _: [String: Int] = try await api.post("lists/\(list.id)/clear-checked")
             }
+            await onChange?()
         }
     }
 }

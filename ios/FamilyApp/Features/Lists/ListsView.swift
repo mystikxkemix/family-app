@@ -1,30 +1,78 @@
 import SwiftUI
 
-/// All shared lists of the household.
+/// All shared lists of the household. On wide screens (iPad), the lists and
+/// the items of the selected list are side by side.
 struct ListsView: View {
     @Environment(AppSession.self) private var session
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var lists: [SharedList] = []
     @State private var hasLoaded = false
     @State private var editing: ListEditor.Target?
+    /// The list shown in the second column on wide screens.
+    @State private var selectedListID: SharedList.ID?
 
     var body: some View {
-        NavigationStack {
-            List {
-                ForEach(lists) { list in
-                    NavigationLink(value: list) {
-                        ListRow(list: list)
+        if sizeClass == .regular {
+            NavigationSplitView {
+                decorated(
+                    List(selection: $selectedListID) {
+                        rows(linked: false)
                     }
-                    .swipeActions(edge: .leading) {
-                        Button("Edit", systemImage: "pencil") { editing = .edit(list) }
-                            .tint(.orange)
+                )
+            } detail: {
+                if let list = lists.first(where: { $0.id == selectedListID }) {
+                    NavigationStack {
+                        // The counts in the first column follow the changes.
+                        ListDetailView(list: list) { await load() }
                     }
+                    .id(list.id)
+                } else {
+                    ContentUnavailableView("Select a list", systemImage: "checklist")
                 }
-                .onDelete(perform: delete)
             }
+            .onChange(of: lists) { _, newLists in
+                // Show the first list rather than an empty column.
+                if selectedListID == nil || !newLists.contains(where: { $0.id == selectedListID }) {
+                    selectedListID = newLists.first?.id
+                }
+            }
+        } else {
+            NavigationStack {
+                decorated(
+                    List {
+                        rows(linked: true)
+                    }
+                )
+                .navigationDestination(for: SharedList.self) { list in
+                    ListDetailView(list: list)
+                }
+            }
+        }
+    }
+
+    /// One row per list: a link on iPhone, a selectable row on iPad.
+    @ViewBuilder
+    private func rows(linked: Bool) -> some View {
+        ForEach(lists) { list in
+            Group {
+                if linked {
+                    NavigationLink(value: list) { ListRow(list: list) }
+                } else {
+                    ListRow(list: list).tag(list.id)
+                }
+            }
+            .swipeActions(edge: .leading) {
+                Button("Edit", systemImage: "pencil") { editing = .edit(list) }
+                    .tint(.orange)
+            }
+        }
+        .onDelete(perform: delete)
+    }
+
+    /// Title, toolbar, sheets and loading, shared by both layouts.
+    private func decorated(_ content: some View) -> some View {
+        content
             .navigationTitle("Lists")
-            .navigationDestination(for: SharedList.self) { list in
-                ListDetailView(list: list)
-            }
             .overlay {
                 if hasLoaded && lists.isEmpty {
                     ContentUnavailableView {
@@ -38,8 +86,14 @@ struct ListsView: View {
                 }
             }
             .toolbar {
-                Button("New list", systemImage: "plus") { editing = .create }
-                    .accessibilityIdentifier("toolbar.add")
+                ToolbarItem(placement: .primaryAction) {
+                    Button("New list", systemImage: "plus") { editing = .create }
+                        .accessibilityIdentifier("toolbar.add")
+                        .keyboardShortcut("n", modifiers: .command)
+                }
+                ToolbarItem(placement: .secondaryAction) {
+                    WideRefreshButton { await load() }
+                }
             }
             .sheet(item: $editing) { target in
                 ListEditor(target: target) { await load() }
@@ -47,7 +101,6 @@ struct ListsView: View {
             .refreshable { await load() }
             .task { await load() }
             .onFamilyDataChanged { await load() }
-        }
     }
 
     private func load() async {

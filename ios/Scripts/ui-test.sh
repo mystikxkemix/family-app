@@ -8,14 +8,18 @@
 # 4. Runs the tests, then removes the containers.
 #
 # Usage: Scripts/ui-test.sh ["iPhone 17"]   (device type, optional)
-# The tests run on their own simulator, "FamilyApp UI Tests", created once:
-# other simulators (and other work on them) are never touched.
-# Screenshots end up in build/ui-test/screenshots.
+#        Scripts/ui-test.sh "iPad Air 11-inch (M3)"
+# The tests run on their own simulator per device type, "FamilyApp UI Tests -
+# <device type>", created once: other simulators are never touched. Run one
+# device type at a time (the test API uses fixed container names and port).
+# Screenshots end up in build/ui-test/screenshots/<device type>.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 device_type="${1:-iPhone 17}"
-simulator_name="FamilyApp UI Tests"
+simulator_name="FamilyApp UI Tests - ${device_type}"
+# Folder-safe name of the device type, for the screenshots.
+device_slug=$(printf '%s' "$device_type" | tr -c 'A-Za-z0-9' '-')
 port=8188
 prefix=family-uitest
 work=build/ui-test
@@ -42,14 +46,15 @@ for _ in $(seq 1 30); do
 done
 curl -fs "http://localhost:${port}/healthz" >/dev/null || { echo "The API did not start"; docker logs "${prefix}-api"; exit 1; }
 
-rm -rf "${work}/screenshots" "${work}/result.xcresult"
-mkdir -p "${work}/screenshots"
+screenshots="${work}/screenshots/${device_slug}"
+rm -rf "$screenshots" "${work}/result.xcresult"
+mkdir -p "$screenshots"
 cat > "${work}/settings.json" <<JSON
 {
   "serverURL": "http://localhost:${port}",
   "adminUsername": "admin",
   "adminPassword": "${admin_password}",
-  "screenshotsDir": "$(pwd)/${work}/screenshots"
+  "screenshotsDir": "$(pwd)/${screenshots}"
 }
 JSON
 
@@ -75,4 +80,4 @@ xcodebuild test \
   -resultBundlePath "${work}/result.xcresult" \
   -test-timeouts-enabled YES -default-test-execution-time-allowance 300 \
   -quiet
-echo "UI tests passed. Screenshots: $(pwd)/${work}/screenshots"
+echo "UI tests passed. Screenshots: $(pwd)/${screenshots}"

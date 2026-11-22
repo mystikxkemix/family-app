@@ -54,6 +54,7 @@ struct PlacesView: View {
                         .contextMenu { contextMenu(place) }
                 }
             }
+            .readableContentWidth()
             .navigationTitle("Places")
             .overlay {
                 if hasLoaded && visiblePlaces.isEmpty {
@@ -65,8 +66,14 @@ struct PlacesView: View {
                 }
             }
             .toolbar {
-                Button("Add", systemImage: "plus") { editing = .create }
-                    .accessibilityIdentifier("toolbar.add")
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Add", systemImage: "plus") { editing = .create }
+                        .accessibilityIdentifier("toolbar.add")
+                        .keyboardShortcut("n", modifiers: .command)
+                }
+                ToolbarItem(placement: .secondaryAction) {
+                    WideRefreshButton { await load() }
+                }
             }
             .sheet(item: $editing) { target in
                 PlaceEditor(target: target) { await load() }

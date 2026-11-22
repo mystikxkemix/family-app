@@ -41,9 +41,16 @@ by code: keep them.
 `ios/Scripts/ui-test.sh` (see the `family-ui-tests` skill). Facts learned the
 hard way:
 
-- Use the dedicated simulator "FamilyApp UI Tests" (the script creates it).
-  Another tool on this Mac also boots "iPhone 17" simulators: a name
-  destination is ambiguous and the run hangs.
+- Each device type has its own dedicated simulator, "FamilyApp UI Tests -
+  <device type>" (the script creates it): `ios/Scripts/ui-test.sh` (iPhone 17)
+  or `ios/Scripts/ui-test.sh "iPad Pro 11-inch (M5)"`. Another tool on this Mac
+  also boots "iPhone 17" simulators: a name destination is ambiguous and the
+  run hangs. Run one device type at a time (fixed container names and port).
+- Screenshots: `ios/build/ui-test/screenshots/<device type>/`.
+- Tabs are found by label (`app.buttons["Lists"]`), which works for the
+  iPhone tab bar and the iPad sidebar/top bar. On iPad the test skips the
+  list "back" button (both columns are visible), long-presses the poster grid
+  instead of swiping, and takes landscape screenshots (`20-`, `21-`, `22-`).
 - The app runs with `-uiTesting`: AutoFill hints are removed
   (`UITextContentType.autoFill`), else the simulator's strong-password AutoFill
   swallows keys and "Save password?" sheets cover the app.
@@ -51,6 +58,24 @@ hard way:
 - Secure fields can still drop keys on a fresh simulator: the test types one
   character at a time and checks the length.
 - `xcodebuild` per-test time limit is 300 s; a run longer than ~6 min is stuck.
+
+## iPad
+
+- Same app (`TARGETED_DEVICE_FAMILY = 1,2`); all orientations and Split View
+  on iPad (`UISupportedInterfaceOrientations~ipad`), portrait only on iPhone.
+- Layouts switch on `horizontalSizeClass`, never on the device: an iPad in a
+  narrow Split View gets the iPhone layout.
+- `TabView` uses `.tabViewStyle(.sidebarAdaptable)`: tab bar on iPhone,
+  sidebar/top bar on iPad.
+- Regular width: Lists = `NavigationSplitView` (lists | items, the counts
+  reload through `ListDetailView.onChange`); Watchlist = poster grid with a
+  long-press menu (status, interest, delete); other screens use
+  `readableContentWidth()` (`Core/Layout.swift`: centered ~720 pt column via
+  content margins, so list backgrounds still fill the screen).
+- Keyboard: ⌘N on each "new" button, ⌘R on `WideRefreshButton` (regular width
+  only).
+- Install on the iPad like a phone: `ios/Scripts/install.sh <profile> <iPad id>`
+  (the iPad must be registered in the team's devices).
 
 ## App icon and splash
 

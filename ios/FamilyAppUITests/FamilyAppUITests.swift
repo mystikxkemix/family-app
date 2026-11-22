@@ -39,6 +39,7 @@ final class FamilyAppUITests: XCTestCase {
         checkPlaces()
         checkEvents()
         checkSettings()
+        checkIPadLandscape()
         checkFrenchTabs()
     }
 
@@ -54,21 +55,21 @@ final class FamilyAppUITests: XCTestCase {
         // The admin password comes from the server settings: it must be changed first.
         let newPassword = app.secureTextFields["password.new"]
         XCTAssertTrue(newPassword.waitForExistence(timeout: 15), "no forced password change after the first login")
-        XCTAssertFalse(app.tabBars.buttons["Lists"].exists, "the app must stay locked until the password changes")
+        XCTAssertFalse(tab("Lists").exists, "the app must stay locked until the password changes")
         snapshot("00-choose-password")
         typeSecure("password-1", into: newPassword)
         typeSecure("password-1", into: app.secureTextFields["password.confirm"])
         app.buttons["password.save"].tap()
-        XCTAssertTrue(app.tabBars.buttons["Lists"].waitForExistence(timeout: 15), "the password change did not unlock the app")
+        XCTAssertTrue(tab("Lists").waitForExistence(timeout: 15), "the password change did not unlock the app")
     }
 
     private func checkLists() {
-        app.tabBars.buttons["Lists"].tap()
+        tab("Lists").tap()
         app.buttons["toolbar.add"].tap()
         type("Groceries", into: app.textFields["editor.name"])
         app.buttons["editor.save"].tap()
 
-        let list = app.staticTexts["Groceries"]
+        let list = app.staticTexts["Groceries"].firstMatch
         XCTAssertTrue(list.waitForExistence(timeout: 10))
         list.tap()
 
@@ -83,13 +84,16 @@ final class FamilyAppUITests: XCTestCase {
         XCTAssertTrue(element(containing: "in the cart").waitForExistence(timeout: 5), "checked item not moved")
         snapshot("01-list-detail")
 
-        app.navigationBars.buttons.element(boundBy: 0).tap()
+        // On iPad the lists stay visible next to the items: no back button.
+        if !isPad {
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+        }
         XCTAssertTrue(app.staticTexts["2 left"].waitForExistence(timeout: 5), "list count not updated")
         snapshot("02-lists")
     }
 
     private func checkWatchlist() {
-        app.tabBars.buttons["Watchlist"].tap()
+        tab("Watchlist").tap()
         app.buttons["toolbar.add"].tap()
         type("Arrival", into: app.textFields["editor.name"])
         app.buttons["editor.save"].tap()
@@ -101,15 +105,35 @@ final class FamilyAppUITests: XCTestCase {
         snapshot("03-watchlist-pick")
         app.alerts.buttons["Cancel"].tap()
 
-        movie.swipeRight()
-        app.buttons["Watched"].firstMatch.tap()
+        // Rows have swipe actions; the iPad poster grid has the same actions
+        // in its long-press menu.
+        if isPad {
+            movie.press(forDuration: 1.2)
+            // The status filter also has a "Watched" button: tap the other one,
+            // the menu item.
+            let watched = app.buttons.matching(NSPredicate(format: "label == %@", "Watched"))
+            XCTAssertTrue(watched.element(boundBy: 1).waitForExistence(timeout: 5), "long-press menu not shown")
+            let filterButton = app.segmentedControls["status.picker"].buttons["Watched"]
+            let menuItem = watched.allElementsBoundByIndex.first { $0.frame != filterButton.frame }
+            XCTAssertNotNil(menuItem, "no Watched item in the long-press menu")
+            menuItem?.tap()
+        } else {
+            movie.swipeRight()
+            app.buttons["Watched"].firstMatch.tap()
+        }
         app.segmentedControls["status.picker"].buttons.element(boundBy: 2).tap()
         XCTAssertTrue(app.staticTexts["Arrival"].waitForExistence(timeout: 5), "movie not in Watched")
         snapshot("04-watchlist-watched")
+
+        // The details page (no TMDB key in the test API: our own data only).
+        app.staticTexts["Arrival"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["details.edit"].waitForExistence(timeout: 5), "details page not opened")
+        snapshot("08-details")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
     }
 
     private func checkPlaces() {
-        app.tabBars.buttons["Places"].tap()
+        tab("Places").tap()
         app.buttons["toolbar.add"].tap()
         type("Chez Lulu", into: app.textFields["editor.name"])
         app.buttons["editor.save"].tap()
@@ -124,7 +148,7 @@ final class FamilyAppUITests: XCTestCase {
     }
 
     private func checkEvents() {
-        app.tabBars.buttons["Events"].tap()
+        tab("Events").tap()
         app.buttons["toolbar.add"].firstMatch.tap()
         type("Dinner with friends", into: app.textFields["editor.name"])
         app.buttons["editor.save"].tap()
@@ -133,7 +157,7 @@ final class FamilyAppUITests: XCTestCase {
     }
 
     private func checkSettings() {
-        app.tabBars.buttons["Settings"].tap()
+        tab("Settings").tap()
         let invite = app.buttons["settings.invite"]
         XCTAssertTrue(invite.waitForExistence(timeout: 5))
         invite.tap()
@@ -147,14 +171,42 @@ final class FamilyAppUITests: XCTestCase {
         app.launchArguments = ["-uiTesting", "-AppleLanguages", "(fr)", "-AppleLocale", "fr_FR"]
         app.launch()
         for (index, title) in ["Listes", "À regarder", "Lieux", "Événements", "Réglages"].enumerated() {
-            let tab = app.tabBars.buttons[title]
-            XCTAssertTrue(tab.waitForExistence(timeout: 10), "French tab \(title) missing")
-            tab.tap()
+            let frenchTab = tab(title)
+            XCTAssertTrue(frenchTab.waitForExistence(timeout: 10), "French tab \(title) missing")
+            frenchTab.tap()
             snapshot("1\(index)-fr-\(title)")
         }
     }
 
+    /// iPad only: the main screens in landscape, for the screenshots.
+    private func checkIPadLandscape() {
+        guard isPad else { return }
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        tab("Lists").tap()
+        XCTAssertTrue(app.staticTexts["2 left"].waitForExistence(timeout: 5), "lists column missing in landscape")
+        snapshot("20-ipad-landscape-lists")
+        tab("Watchlist").tap()
+        XCTAssertTrue(app.staticTexts["Arrival"].waitForExistence(timeout: 5))
+        snapshot("21-ipad-landscape-watchlist")
+        app.staticTexts["Arrival"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["details.edit"].waitForExistence(timeout: 5))
+        snapshot("22-ipad-landscape-details")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+    }
+
     // MARK: Helpers
+
+    /// True on iPad: the layout has a sidebar, two columns and a poster grid.
+    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+
+    /// A main screen, by its title: a tab bar button on iPhone, a top bar
+    /// button (portrait) or a sidebar cell (landscape) on iPad.
+    private func tab(_ title: String) -> XCUIElement {
+        let types = [XCUIElement.ElementType.button.rawValue, XCUIElement.ElementType.cell.rawValue]
+        let predicate = NSPredicate(format: "label == %@ AND elementType IN %@", title, types)
+        return app.descendants(matching: .any).matching(predicate).firstMatch
+    }
 
     private func type(_ text: String, into field: XCUIElement) {
         XCTAssertTrue(field.waitForExistence(timeout: 5), "missing field \(field)")
@@ -171,7 +223,10 @@ final class FamilyAppUITests: XCTestCase {
         var typed = 0
         for _ in 1...3 {
             field.tap()
-            XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "no keyboard for \(field)")
+            // Wait for the field to take the keys. Not for an on-screen
+            // keyboard: an iPad simulator may use the Mac keyboard instead.
+            let focused = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hasKeyboardFocus == true"), object: field)
+            _ = XCTWaiter.wait(for: [focused], timeout: 5)
             let existing = secureLength(field)
             if existing > 0 {
                 field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: existing))
