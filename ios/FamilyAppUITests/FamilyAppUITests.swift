@@ -36,6 +36,7 @@ final class FamilyAppUITests: XCTestCase {
         firstAdminLogin()
         checkLists()
         checkWatchlist()
+        try checkJellyfin()
         checkPlaces()
         checkEvents()
         checkSettings()
@@ -129,6 +130,41 @@ final class FamilyAppUITests: XCTestCase {
         app.staticTexts["Arrival"].firstMatch.tap()
         XCTAssertTrue(app.buttons["details.edit"].waitForExistence(timeout: 5), "details page not opened")
         snapshot("08-details")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+    }
+
+    /// The test API reads a fake Jellyfin (Scripts/fake-jellyfin.conf) with
+    /// "Arrival" (not played) and "Heat" (played). The household link and the
+    /// sync are in the admin website: the test calls the API for them.
+    private func checkJellyfin() throws {
+        let token = try apiCall("POST", "auth/login", ["username": settings.adminUsername, "password": "password-1"])["token"] as? String
+        XCTAssertNotNil(token, "API login failed")
+        _ = try apiCall("PUT", "admin/jellyfin/household", ["jellyfinUserId": "uitest-user"], token: token)
+        // Linking also starts the server's own sync: ours may find it running
+        // (409) or find Heat already imported (matched instead of imported).
+        var sync: [String: Any] = [:]
+        for _ in 1...10 {
+            sync = try apiCall("POST", "admin/jellyfin/sync", [:], token: token, allowConflict: true)
+            if !sync.isEmpty { break }
+            Thread.sleep(forTimeInterval: 1)
+        }
+        let linked = (sync["matched"] as? Int ?? 0) + (sync["imported"] as? Int ?? 0)
+        XCTAssertEqual(linked, 2, "sync result: \(sync)")
+
+        // Back from the background, the app reloads its data.
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        // Still on the Watched filter: Arrival (ours) and Heat (imported).
+        XCTAssertTrue(app.staticTexts["Heat"].waitForExistence(timeout: 10), "the played Jellyfin movie was not imported")
+        let badge = app.descendants(matching: .any).matching(identifier: "media.onJellyfin").firstMatch
+        XCTAssertTrue(badge.waitForExistence(timeout: 5), "no On Jellyfin badge")
+        snapshot("09-jellyfin-watchlist")
+
+        app.staticTexts["Heat"].firstMatch.tap()
+        let watched = app.descendants(matching: .any).matching(identifier: "details.jellyfinWatched").firstMatch
+        XCTAssertTrue(watched.waitForExistence(timeout: 5), "no Watched in Jellyfin line")
+        XCTAssertTrue(element(containing: "Added from Jellyfin").exists, "no Added from Jellyfin line")
+        snapshot("09-jellyfin-details")
         app.navigationBars.buttons.element(boundBy: 0).tap()
     }
 
@@ -254,6 +290,36 @@ final class FamilyAppUITests: XCTestCase {
         app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", text)).firstMatch
     }
 
+    /// Calls the test API directly (admin routes the app has no screen for)
+    /// and returns the JSON object it answers. With allowConflict, a 409
+    /// returns an empty object instead of failing.
+    private func apiCall(
+        _ method: String, _ path: String, _ body: [String: String], token: String? = nil, allowConflict: Bool = false
+    ) throws -> [String: Any] {
+        let url = try XCTUnwrap(URL(string: "\(settings.serverURL)/api/v1/\(path)"))
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let token {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let answer = APIAnswer()
+        let done = DispatchSemaphore(value: 0)
+        URLSession.shared.dataTask(with: request) { data, response, _ in
+            answer.data = data
+            answer.status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            done.signal()
+        }.resume()
+        done.wait()
+        let text = String(data: answer.data ?? Data(), encoding: .utf8) ?? ""
+        if allowConflict && answer.status == 409 {
+            return [:]
+        }
+        XCTAssertTrue((200..<300).contains(answer.status), "\(method) \(path): \(answer.status) \(text)")
+        return (try? JSONSerialization.jsonObject(with: answer.data ?? Data())) as? [String: Any] ?? [:]
+    }
+
     /// Keeps a screenshot in the test report and in build/ui-test/screenshots.
     private func snapshot(_ name: String) {
         let screenshot = XCUIScreen.main.screenshot()
@@ -264,4 +330,10 @@ final class FamilyAppUITests: XCTestCase {
         let file = URL(fileURLWithPath: settings.screenshotsDir).appending(path: "\(name).png")
         try? screenshot.pngRepresentation.write(to: file)
     }
+}
+
+/// The answer of one API call (filled on URLSession's queue, read after the wait).
+private final class APIAnswer: @unchecked Sendable {
+    var data: Data?
+    var status = 0
 }
