@@ -14,6 +14,7 @@ sends a push notification to the other members.
 | Lists | Shared lists (groceries, to-do, other). Add items fast, tap to check, clear checked items. |
 | Watchlist | Movies and shows, with status (to watch, watching, watched) and who wants to watch. "Pick for us" chooses a title at random, titles that everyone wants first. |
 | Details | Each title has a details page from TMDB: synopsis, genres, length, TMDB rating, director and cast, trailer. Titles typed by hand are linked to TMDB automatically when the match is safe; "Change match" fixes a wrong one. |
+| Jellyfin | The server reads the household's Jellyfin account every 15 minutes: titles we have get an "On Jellyfin" badge, titles we played move to Watched (never back; your own status change wins), and the movies and shows we watched in Jellyfin are added to the watchlist as Watched. It only reads Jellyfin. |
 | Media tools | With Radarr/Sonarr: search a title to fill its poster, and send it to download. With Prowlarr: interactive search and manual grab. All optional. |
 | Places | Restaurants, bars, activities to try. Who wants to go, "tried" with a 1-5 rating, open in Maps. |
 | Events | Upcoming events grouped by day, with time, place and notes. "Add to my calendar" puts one in the iPhone calendar. |
@@ -29,7 +30,9 @@ section for admins:
 - server status;
 - users: make someone admin, reset a password (the person must change it at
   the next login), delete an account;
-- connections: tests the database, Radarr, Sonarr, Prowlarr, TMDB and the push keys at once (also in the iPhone app, Settings > Connections, for admins);
+- connections: tests the database, Radarr, Sonarr, Prowlarr, TMDB, Jellyfin and the push keys at once (also in the iPhone app, Settings > Connections, for admins);
+- Jellyfin: address and API key, the Jellyfin account of the household,
+  "Sync now" and the result of the last sync;
 - media tools (Radarr, Sonarr, Prowlarr) and push keys: saved to
   `settings.json` and applied at once, with a "Test" button. Secrets are never
   shown again after saving.
@@ -78,6 +81,7 @@ Every part is optional: without the file, push and media tools are off.
 | `sonarr` | Same as Radarr, for shows (Sonarr v4). |
 | `prowlarr` | `url`, `apiKey`, for the interactive search. |
 | `tmdb` | `apiKey`: a TMDB API key or read access token (free, themoviedb.org > Settings > API). Search and details pages. |
+| `jellyfin` | `url` (from the container, for example `http://host.docker.internal:8096`) and `apiKey` (Jellyfin dashboard > API Keys). The household's Jellyfin account is chosen in Admin > Jellyfin. |
 
 The container runs as user `65532`, and the file holds secrets:
 
@@ -188,7 +192,8 @@ password, writes the server address and the admin account to
 `ios/build/ui-test/settings.json` (a local file, read by the tests), and runs
 the tests in the simulator. The tests log in as the admin, go through the
 forced password change, then use every screen: lists, watchlist, places, events and
-settings, and check the tabs in French. Screenshots go to
+settings, and check the tabs in French. A fake Jellyfin (nginx, `ios/Scripts/fake-jellyfin.conf`)
+checks the Jellyfin badge and import. Screenshots go to
 `ios/build/ui-test/screenshots`. Needs Docker; they do not run in CI.
 
 ### Languages

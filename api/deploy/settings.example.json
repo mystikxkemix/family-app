@@ -35,5 +35,9 @@
   },
   "tmdb": {
     "apiKey": "your-tmdb-api-key-or-read-access-token"
+  },
+  "jellyfin": {
+    "url": "http://host.docker.internal:8096",
+    "apiKey": "your-jellyfin-api-key"
   }
 }
