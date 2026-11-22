@@ -53,7 +53,7 @@ cd api/deploy && docker compose up --build   # API on http://localhost:8100, wit
 ```
 
 Or use the image `ghcr.io/mystikxkemix/family-api`, built by CI on each push to
-`master` (tags `1.<commit count>` and `latest`).
+`master` (tags `2.<merges into master>`, +1 per merged PR, and `latest`).
 
 ### Settings (environment variables)
 
