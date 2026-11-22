@@ -55,13 +55,16 @@ struct RootView: View {
 
 struct MainTabView: View {
     var body: some View {
+        // A tab bar on iPhone; a sidebar (that can turn into a tab bar) on iPad.
+        // In a narrow Split View, the iPad gets the iPhone tab bar.
         TabView {
             Tab("Lists", systemImage: "checklist") { ListsView() }
             Tab("Watchlist", systemImage: "popcorn") { WatchlistView() }
             Tab("Places", systemImage: "fork.knife") { PlacesView() }
             Tab("Events", systemImage: "calendar") { EventsView() }
-            Tab("Settings", systemImage: "gearshape") { SettingsView() }
+            Tab("Settings", systemImage: "gearshape") { SettingsView().readableContentWidth() }
         }
+        .tabViewStyle(.sidebarAdaptable)
     }
 }
 

@@ -1311,6 +1311,16 @@
         }
       }
     },
+    "Refresh": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualiser"
+          }
+        }
+      }
+    },
     "Releases": {
       "localizations": {
         "fr": {
@@ -1397,6 +1407,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Chercher des versions (Prowlarr)"
+          }
+        }
+      }
+    },
+    "Select a list": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choisissez une liste"
           }
         }
       }

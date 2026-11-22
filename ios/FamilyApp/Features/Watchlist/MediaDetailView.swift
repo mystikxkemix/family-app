@@ -70,6 +70,7 @@ struct MediaDetailView: View {
                 }
             }
         }
+        .readableContentWidth()
         .navigationTitle(media.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
