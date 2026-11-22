@@ -245,6 +245,9 @@ private struct MediaGridCell: View {
                     .foregroundStyle(.secondary)
             }
             InterestLine(userIds: media.interestedUserIds)
+            if media.jellyfin?.available == true {
+                JellyfinBadge()
+            }
         }
         .contentShape(Rectangle())
     }
@@ -270,6 +273,9 @@ private struct MediaRow: View {
                         .lineLimit(2)
                 }
                 InterestLine(userIds: media.interestedUserIds)
+                if media.jellyfin?.available == true {
+                    JellyfinBadge()
+                }
                 if media.downloadRequestedAt != nil {
                     Label("Download requested", systemImage: "arrow.down.circle")
                         .font(.caption)
@@ -278,6 +284,16 @@ private struct MediaRow: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+/// "On Jellyfin": the title is in the Jellyfin library (the server syncs it).
+struct JellyfinBadge: View {
+    var body: some View {
+        Label("On Jellyfin", systemImage: "play.tv.fill")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.purple)
+            .accessibilityIdentifier("media.onJellyfin")
     }
 }
 

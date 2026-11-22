@@ -37,12 +37,15 @@ struct Integrations: Codable, Hashable, Sendable {
     var prowlarr: Bool
     /// TMDB: title search and the details page.
     var tmdb: Bool
+    /// Jellyfin: what we have and what we watched (the server syncs it).
+    var jellyfin: Bool
 
-    init(radarr: Bool, sonarr: Bool, prowlarr: Bool, tmdb: Bool) {
+    init(radarr: Bool, sonarr: Bool, prowlarr: Bool, tmdb: Bool, jellyfin: Bool = false) {
         self.radarr = radarr
         self.sonarr = sonarr
         self.prowlarr = prowlarr
         self.tmdb = tmdb
+        self.jellyfin = jellyfin
     }
 
     /// Every flag is optional in the JSON, so an older server (without
@@ -53,6 +56,7 @@ struct Integrations: Codable, Hashable, Sendable {
         sonarr = try container.decodeIfPresent(Bool.self, forKey: .sonarr) ?? false
         prowlarr = try container.decodeIfPresent(Bool.self, forKey: .prowlarr) ?? false
         tmdb = try container.decodeIfPresent(Bool.self, forKey: .tmdb) ?? false
+        jellyfin = try container.decodeIfPresent(Bool.self, forKey: .jellyfin) ?? false
     }
 
     /// Radarr for movies, Sonarr for shows.
@@ -168,6 +172,14 @@ enum MediaStatus: String, Codable, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// The Jellyfin side of a watchlist title (the server reads Jellyfin).
+struct MediaJellyfin: Codable, Hashable, Sendable {
+    /// False once the title is no longer in Jellyfin.
+    var available: Bool
+    /// Last time it was played in Jellyfin.
+    var playedAt: Date?
+}
+
 struct ExternalIDs: Codable, Hashable, Sendable {
     var tmdb: Int?
     var tvdb: Int?
@@ -189,6 +201,10 @@ struct Media: Codable, Identifiable, Hashable, Sendable {
     var watchedAt: Date?
     /// When someone sent it to Radarr or Sonarr.
     var downloadRequestedAt: Date?
+    /// "jellyfin" for a title the Jellyfin sync added.
+    var source: String?
+    /// Set when the title is in Jellyfin (or was).
+    var jellyfin: MediaJellyfin?
     let createdAt: Date
     var updatedAt: Date
 }

@@ -262,6 +262,32 @@ struct MediaDetailView: View {
                 Text(media.note)
                     .foregroundStyle(.secondary)
             }
+            jellyfinRows
+        }
+    }
+
+    /// What the Jellyfin sync knows about this title.
+    @ViewBuilder
+    private var jellyfinRows: some View {
+        if let jellyfin = media.jellyfin {
+            if jellyfin.available {
+                JellyfinBadge()
+            } else {
+                Label("No longer in Jellyfin", systemImage: "play.slash")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            if let playedAt = jellyfin.playedAt {
+                Label("Watched in Jellyfin on \(playedAt.formatted(date: .long, time: .omitted))", systemImage: "checkmark.circle")
+                    .font(.subheadline)
+                    .foregroundStyle(.green)
+                    .accessibilityIdentifier("details.jellyfinWatched")
+            }
+        }
+        if media.source == "jellyfin" {
+            Label("Added from Jellyfin", systemImage: "square.and.arrow.down")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
         }
     }
 

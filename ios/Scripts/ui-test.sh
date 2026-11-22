@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Runs the UI tests in the simulator against a throwaway API and MongoDB.
 #
-# 1. Starts MongoDB and the API (built from ../api) in Docker, on a private network.
+# 1. Starts MongoDB, a fake Jellyfin and the API (built from ../api) in Docker,
+#    on a private network.
 # 2. Gives the API a throwaway admin account (ADMIN_USERNAME / ADMIN_PASSWORD).
 # 3. Writes build/ui-test/settings.json (server address + admin account), read
 #    by the tests.
@@ -25,19 +26,29 @@ prefix=family-uitest
 work=build/ui-test
 
 cleanup() {
-  docker rm -f "${prefix}-api" "${prefix}-mongo" >/dev/null 2>&1 || true
+  docker rm -f "${prefix}-api" "${prefix}-mongo" "${prefix}-jellyfin" >/dev/null 2>&1 || true
   docker network rm "${prefix}" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 cleanup
 
-echo "Starting MongoDB and the API..."
+echo "Starting MongoDB, a fake Jellyfin and the API..."
+mkdir -p "$work"
 docker network create "${prefix}" >/dev/null
 docker run -d --name "${prefix}-mongo" --network "${prefix}" mongo:8 >/dev/null
+# A fake Jellyfin (nginx with fixed answers), see Scripts/fake-jellyfin.conf.
+docker run -d --name "${prefix}-jellyfin" --network "${prefix}" \
+  -v "$(pwd)/Scripts/fake-jellyfin.conf:/etc/nginx/conf.d/default.conf:ro" nginx:1.27-alpine >/dev/null
 until docker exec "${prefix}-mongo" mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' >/dev/null 2>&1; do sleep 1; done
 docker build -q -t family-api:uitest ../api >/dev/null
 admin_password="uitest-$(openssl rand -hex 6)"
+# The API settings file: only Jellyfin (the fake one).
+cat > "${work}/api-settings.json" <<JSON
+{ "jellyfin": { "url": "http://${prefix}-jellyfin:8096", "apiKey": "uitest-key" } }
+JSON
+chmod 644 "${work}/api-settings.json"
 docker run -d --name "${prefix}-api" --network "${prefix}" -p "${port}:8080" \
+  -v "$(pwd)/${work}/api-settings.json:/data/settings.json:ro" \
   -e "MONGODB_URI=mongodb://${prefix}-mongo:27017" \
   -e "ADMIN_USERNAME=admin" -e "ADMIN_PASSWORD=${admin_password}" family-api:uitest >/dev/null
 for _ in $(seq 1 30); do

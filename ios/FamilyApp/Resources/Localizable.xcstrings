@@ -251,6 +251,16 @@
         }
       }
     },
+    "Added from Jellyfin": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouté depuis Jellyfin"
+          }
+        }
+      }
+    },
     "Address or area": {
       "localizations": {
         "fr": {
@@ -1011,6 +1021,16 @@
         }
       }
     },
+    "No longer in Jellyfin": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "N’est plus dans Jellyfin"
+          }
+        }
+      }
+    },
     "No places yet": {
       "localizations": {
         "fr": {
@@ -1137,6 +1157,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "OK"
+          }
+        }
+      }
+    },
+    "On Jellyfin": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sur Jellyfin"
           }
         }
       }
@@ -1837,6 +1867,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Vu"
+          }
+        }
+      }
+    },
+    "Watched in Jellyfin on %@": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vu dans Jellyfin le %@"
           }
         }
       }

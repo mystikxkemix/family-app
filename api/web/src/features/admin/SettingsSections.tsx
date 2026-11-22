@@ -34,11 +34,18 @@ interface TmdbDraft {
   remove: boolean;
 }
 
+export interface JellyfinDraft {
+  url: string;
+  apiKey: string;
+  apiKeySet: boolean;
+}
+
 interface Draft {
   radarr: ArrDraft;
   sonarr: ArrDraft;
   prowlarr: ArrDraft;
   tmdb: TmdbDraft;
+  jellyfin: JellyfinDraft;
   apns: ApnsDraft[];
 }
 
@@ -55,6 +62,7 @@ function toDraft(settings: AdminSettings): Draft {
     sonarr: arr('sonarr'),
     prowlarr: arr('prowlarr'),
     tmdb: { apiKey: '', apiKeySet: settings.tmdb?.apiKeySet ?? false, remove: false },
+    jellyfin: { url: settings.jellyfin?.url ?? '', apiKey: '', apiKeySet: settings.jellyfin?.apiKeySet ?? false },
     apns: settings.apns.credentials.map((credential) => ({
       teamId: credential.teamId,
       keyId: credential.keyId,
@@ -77,6 +85,7 @@ function toInput(draft: Draft): AdminSettingsInput {
     sonarr: arr(draft.sonarr),
     prowlarr: { url: draft.prowlarr.url.trim(), apiKey: draft.prowlarr.apiKey.trim() },
     tmdb: draft.tmdb.remove ? { apiKey: '', remove: true } : { apiKey: draft.tmdb.apiKey.trim() },
+    jellyfin: { url: draft.jellyfin.url.trim(), apiKey: draft.jellyfin.apiKey.trim() },
     apns: {
       credentials: draft.apns.map((credential) => ({
         teamId: credential.teamId.trim(),
@@ -129,7 +138,7 @@ export function useAdminSettings() {
   return { draft, setDraft, save, test, busy };
 }
 
-type AdminSettingsState = ReturnType<typeof useAdminSettings>;
+export type AdminSettingsState = ReturnType<typeof useAdminSettings>;
 
 const toolNames: Record<ArrTool, string> = { radarr: 'Radarr', sonarr: 'Sonarr', prowlarr: 'Prowlarr' };
 

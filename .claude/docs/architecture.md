@@ -69,6 +69,36 @@ logout, push devices) and `isAdmin` (admin section of the website).
 - Local checks without a real key: `TMDB_BASE_URL` (dev only) points the API
   to a fake TMDB server.
 
+## Jellyfin sync
+
+- `internal/jellyfin`: read-only client (`Authorization: MediaBrowser Token="<key>"`).
+  `Library(userID)` reads `/Items` (Movie, Series; pages of 500) and the played
+  episodes: a show has no `LastPlayedDate`, its date is the one of its last
+  played episode. Items without a TMDB and a TVDB id are skipped (YouTube
+  downloads). A partly played show has `PlayedPercentage > 0`.
+- One Jellyfin account per household: `households.jellyfinUserId`, set with
+  `PUT /admin/jellyfin/household` (the admin's own household).
+- `internal/api/jellyfin.go`: a goroutine syncs at start, every 15 minutes,
+  and when the settings or the household link change; `POST /admin/jellyfin/sync`
+  runs one now (`409 sync_running` if one runs). The last result is kept in
+  memory (`GET /admin/jellyfin`).
+- Match: TMDB id, then TVDB id, then normalized title + year ±1 (never when
+  both have a different TMDB id). Matched titles get `media.jellyfin`
+  (`itemId`, `available`, `playedAt`, `state`) and the missing TMDB/TVDB ids.
+- Status: only forward (`statusRank`). `media.statusSetBy` = `user` (app,
+  website) or `jellyfin`. A user's status is kept while `jellyfin.state` stays
+  the same; a new played state moves it again.
+- Import: fully played items not in the watchlist are added as Watched with
+  `source: "jellyfin"`, no interested people, empty `addedBy`. Their poster
+  comes from TMDB after the sync (`fillImportedPosters`, sets `matchCheckedAt`).
+  Deleting a title linked to Jellyfin adds its item to
+  `households.jellyfinIgnoredItems`: it is never imported again.
+- Tests turn the goroutine off (`jellyfinAutoSync = false`) and call the sync
+  route; the UI tests use a fake Jellyfin in nginx (`ios/Scripts/fake-jellyfin.conf`).
+- A Go binary built on this Mac may get "no route to host" to LAN addresses
+  (macOS Local Network privacy), while curl works: check the real Jellyfin
+  with curl, not with `go run`.
+
 ## iPhone app (ios/)
 
 - `Core/`: `APIClient` (value type, `JSONBody`/`JSONValue` for PATCH bodies),

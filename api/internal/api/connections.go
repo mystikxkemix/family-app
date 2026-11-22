@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"familyapp/internal/arr"
+	"familyapp/internal/jellyfin"
 	"familyapp/internal/push"
 	"familyapp/internal/tmdb"
 )
@@ -65,7 +66,7 @@ func runCheck(parent context.Context, check connectionCheck) connectionResult {
 	if err != nil {
 		// "media tool error: Prowlarr is not reachable..." → the reason only.
 		message := err.Error()
-		for _, prefix := range []string{arr.ErrUpstream.Error() + ": ", tmdb.ErrUpstream.Error() + ": "} {
+		for _, prefix := range []string{arr.ErrUpstream.Error() + ": ", tmdb.ErrUpstream.Error() + ": ", jellyfin.ErrUpstream.Error() + ": "} {
 			message = strings.TrimPrefix(message, prefix)
 		}
 		result.Message = message
@@ -104,6 +105,10 @@ func (s *Server) connectionChecks() []connectionCheck {
 	if client := s.tmdbClient(); client != nil {
 		tmdbCheck.test = client.Ping
 	}
+	jellyfinCheck := connectionCheck{service: "jellyfin"}
+	if client := s.jellyfinClient(); client != nil {
+		jellyfinCheck.test = client.Ping
+	}
 	pushCheck := connectionCheck{service: "push"}
 	if credentials := s.currentSettings().APNs.Credentials; len(credentials) > 0 {
 		pushCheck.test = func(context.Context) (string, error) {
@@ -115,5 +120,5 @@ func (s *Server) connectionChecks() []connectionCheck {
 			return fmt.Sprintf("%d APNs key(s) ready", len(credentials)), nil
 		}
 	}
-	return append(checks, radarr, sonarr, prowlarr, tmdbCheck, pushCheck)
+	return append(checks, radarr, sonarr, prowlarr, tmdbCheck, jellyfinCheck, pushCheck)
 }

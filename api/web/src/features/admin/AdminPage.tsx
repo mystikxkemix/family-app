@@ -3,6 +3,7 @@ import { PageHeader } from '../../components/ui';
 import { StatusSection } from './StatusSection';
 import { ConnectionsSection } from './ConnectionsSection';
 import { UsersSection } from './UsersSection';
+import { JellyfinSection } from './JellyfinSection';
 import { MediaToolsSection, PushSection, useAdminSettings } from './SettingsSections';
 
 /** Server administration, for admins only (the API checks it too). */
@@ -16,6 +17,7 @@ export function AdminPage() {
       <ConnectionsSection />
       <UsersSection />
       <MediaToolsSection settings={settings} />
+      <JellyfinSection settings={settings} />
       <PushSection settings={settings} />
     </section>
   );

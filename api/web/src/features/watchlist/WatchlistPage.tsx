@@ -80,9 +80,18 @@ export function WatchlistPage() {
                   </strong>
                   {media.note && <span className="muted small clamp">{media.note}</span>}
                   <InterestLine userIds={media.interestedUserIds} />
-                  {media.downloadRequestedAt && (
-                    <span className="badge success">
-                      <Icon name="download" size={14} /> {t('wl.downloadRequested')}
+                  {(media.downloadRequestedAt || media.jellyfin?.available) && (
+                    <span className="badges">
+                      {media.jellyfin?.available && (
+                        <span className="badge accent">
+                          <Icon name="play" size={12} /> {t('wl.onJellyfin')}
+                        </span>
+                      )}
+                      {media.downloadRequestedAt && (
+                        <span className="badge success">
+                          <Icon name="download" size={14} /> {t('wl.downloadRequested')}
+                        </span>
+                      )}
                     </span>
                   )}
                 </span>

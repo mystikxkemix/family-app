@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useI18n } from '../../i18n';
 import { ApiError, api } from '../../lib/api';
+import { formatDate } from '../../lib/format';
 import { navigate, useLoader } from '../../lib/hooks';
 import { useMe } from '../../lib/session';
 import { mediaStatuses, type DownloadResponse, type Media, type MediaDetails, type MediaSearchResult } from '../../lib/types';
@@ -26,7 +27,7 @@ type DetailsState =
  * and our own data (status, who wants it, note, download tools).
  */
 export function MediaDetailPage({ mediaId }: { mediaId: string }) {
-  const { t, lang } = useI18n();
+  const { t, lang, locale } = useI18n();
   const me = useMe();
   const { run, showInfo } = useFeedback();
   const errorText = useErrorText();
@@ -208,6 +209,23 @@ export function MediaDetailPage({ mediaId }: { mediaId: string }) {
           <InterestLine userIds={media.interestedUserIds} />
         </div>
         {media.note && <p className="detail-note">{media.note}</p>}
+        {(media.jellyfin || media.source === 'jellyfin') && (
+          <span className="badges" data-testid="jellyfin-info">
+            {media.jellyfin?.available ? (
+              <span className="badge accent">
+                <Icon name="play" size={12} /> {t('wl.onJellyfin')}
+              </span>
+            ) : (
+              media.jellyfin && <span className="badge">{t('details.notInJellyfin')}</span>
+            )}
+            {media.jellyfin?.playedAt && (
+              <span className="badge success">
+                {t('details.watchedInJellyfin', { date: formatDate(new Date(media.jellyfin.playedAt), locale) })}
+              </span>
+            )}
+            {media.source === 'jellyfin' && <span className="badge">{t('wl.fromJellyfin')}</span>}
+          </span>
+        )}
         {(hasLibrary || integrations.prowlarr) && (
           <div className="tool-buttons">
             {hasLibrary && (

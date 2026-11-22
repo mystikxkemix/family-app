@@ -29,6 +29,28 @@ func (s *Store) RenameHousehold(ctx context.Context, id bson.ObjectID, name stri
 	return updateOne[Household](ctx, s.households, bson.M{"_id": id}, bson.M{"$set": bson.M{"name": name}})
 }
 
+// SetHouseholdJellyfinUser links a household to a Jellyfin account ("" removes
+// the link).
+func (s *Store) SetHouseholdJellyfinUser(ctx context.Context, id bson.ObjectID, jellyfinUserID string) (*Household, error) {
+	update := bson.M{"$set": bson.M{"jellyfinUserId": jellyfinUserID}}
+	if jellyfinUserID == "" {
+		update = bson.M{"$unset": bson.M{"jellyfinUserId": ""}}
+	}
+	return updateOne[Household](ctx, s.households, bson.M{"_id": id}, update)
+}
+
+// JellyfinHouseholds returns the households linked to a Jellyfin account.
+func (s *Store) JellyfinHouseholds(ctx context.Context) ([]Household, error) {
+	return findAll[Household](ctx, s.households, bson.M{"jellyfinUserId": bson.M{"$exists": true, "$ne": ""}})
+}
+
+// IgnoreJellyfinItem remembers that a household deleted the title of a
+// Jellyfin item, so the sync does not import it again.
+func (s *Store) IgnoreJellyfinItem(ctx context.Context, householdID bson.ObjectID, itemID string) error {
+	_, err := s.households.UpdateOne(ctx, bson.M{"_id": householdID}, bson.M{"$addToSet": bson.M{"jellyfinIgnoredItems": itemID}})
+	return err
+}
+
 // --- Users --------------------------------------------------------------------
 
 // CountUsers returns how many accounts exist.

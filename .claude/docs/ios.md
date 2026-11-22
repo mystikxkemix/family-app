@@ -58,6 +58,11 @@ hard way:
 - Secure fields can still drop keys on a fresh simulator: the test types one
   character at a time and checks the length.
 - `xcodebuild` per-test time limit is 300 s; a run longer than ~6 min is stuck.
+- Jellyfin: the script starts a fake Jellyfin (`nginx:1.27-alpine` with
+  `ios/Scripts/fake-jellyfin.conf`) and gives the test API a `settings.json`
+  pointing to it. The test links the household and syncs through the admin API
+  (`apiCall`), then presses Home and reopens the app: coming back to the
+  foreground reloads the data (simpler than pull to refresh on iPhone and iPad).
 
 ## iPad
 

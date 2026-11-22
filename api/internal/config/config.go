@@ -1,7 +1,8 @@
 // Package config reads the API settings.
 //
 // Plain settings (port, database...) come from environment variables. Secrets
-// and addresses of other services (APNs keys, Radarr, Sonarr, Prowlarr) come
+// and addresses of other services (APNs keys, Radarr, Sonarr, Prowlarr, TMDB,
+// Jellyfin) come
 // from a local JSON file, so they never show up in a container's environment.
 package config
 
@@ -81,6 +82,21 @@ type Settings struct {
 	Prowlarr ArrConfig   `json:"prowlarr"`
 	// TMDB gives movie and show details (see internal/tmdb).
 	TMDB TMDBConfig `json:"tmdb"`
+	// Jellyfin tells what we have and what we watched (see internal/jellyfin).
+	Jellyfin JellyfinConfig `json:"jellyfin"`
+}
+
+// JellyfinConfig is the address of the Jellyfin server and an API key from its
+// dashboard (Dashboard > API Keys). The Jellyfin user of each household is
+// chosen in the admin page and saved in the database.
+type JellyfinConfig struct {
+	URL    string `json:"url"`
+	APIKey string `json:"apiKey"`
+}
+
+// Enabled reports whether Jellyfin has an address and a key.
+func (c JellyfinConfig) Enabled() bool {
+	return c.URL != "" && c.APIKey != ""
 }
 
 // TMDBConfig is the key of The Movie Database: a v3 API key or a v4 read
