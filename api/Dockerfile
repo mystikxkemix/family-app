@@ -16,7 +16,7 @@ RUN npm run build
 # Build on the builder's own platform and cross-compile (no CPU emulation).
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-trixie AS build
 ARG TARGETOS TARGETARCH
-# Version shown by /healthz, e.g. 1.42 (set by CI).
+# Version shown by /healthz, e.g. 2.42 (set by CI).
 ARG VERSION=dev
 WORKDIR /src
 COPY go.mod go.sum ./

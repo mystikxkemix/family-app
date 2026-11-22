@@ -7,7 +7,7 @@ in `CLAUDE.local.md` (gitignored). Never write them in committed files.
 
 1. Push to `master` → CI (`.github/workflows/ci.yml`): API tests (MongoDB
    service), website typecheck + build, iOS simulator build, then **Publish
-   image**: `ghcr.io/mystikxkemix/family-api:1.<commit count>` + `latest`.
+   image**: `ghcr.io/mystikxkemix/family-api:2.<merges into master>` + `latest`.
 2. The store repo `mystikxkemix/zimaos-appstore` (`Apps/family-api/`) runs
    "Publish store" hourly and on push: `scripts/bump_images.py` raises the image
    tag and `x-casaos.version`, then GitHub Pages redeploys the store.
