@@ -21,6 +21,8 @@ export interface Integrations {
   prowlarr: boolean;
   /** TMDB: title search and the details page. */
   tmdb: boolean;
+  /** Jellyfin: what we have and what we watched. */
+  jellyfin: boolean;
 }
 
 export interface Me {
@@ -98,8 +100,19 @@ export interface Media {
   addedBy: string;
   watchedAt?: string;
   downloadRequestedAt?: string;
+  /** "jellyfin" for a title the Jellyfin sync added. */
+  source?: string;
+  /** Set when the title is in Jellyfin (or was). */
+  jellyfin?: MediaJellyfin;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface MediaJellyfin {
+  /** False once the title is no longer in Jellyfin. */
+  available: boolean;
+  /** Last time it was played in Jellyfin. */
+  playedAt?: string;
 }
 
 export interface MediaSearchResult {
@@ -225,7 +238,7 @@ export interface AdminUser {
 
 export type ArrTool = 'radarr' | 'sonarr' | 'prowlarr';
 /** Tools with a connection test in the admin page. */
-export type TestableTool = ArrTool | 'tmdb';
+export type TestableTool = ArrTool | 'tmdb' | 'jellyfin';
 
 /** One media tool as the API shows it: the key itself is never sent back. */
 export interface ArrSettings {
@@ -247,6 +260,7 @@ export interface AdminSettings {
   sonarr: ArrSettings;
   prowlarr: ArrSettings;
   tmdb: { apiKeySet: boolean };
+  jellyfin: { url: string; apiKeySet: boolean };
   apns: { credentials: ApnsCredential[] };
 }
 
@@ -271,7 +285,41 @@ export interface AdminSettingsInput {
   prowlarr: ArrSettingsInput;
   /** "" keeps the saved key; remove deletes it. */
   tmdb: { apiKey: string; remove?: boolean };
+  /** "" for url turns Jellyfin off; "" for apiKey keeps the saved key. */
+  jellyfin: { url: string; apiKey: string };
   apns: { credentials: ApnsCredentialInput[] };
+}
+
+/** A Jellyfin account (GET admin/jellyfin/users). */
+export interface JellyfinUser {
+  id: string;
+  name: string;
+}
+
+/** The result of one Jellyfin sync. */
+export interface JellyfinSyncResult {
+  at: string;
+  ok: boolean;
+  message?: string;
+  households: number;
+  /** Jellyfin movies and shows read. */
+  available: number;
+  /** Watchlist titles linked to Jellyfin. */
+  matched: number;
+  markedWatching: number;
+  markedWatched: number;
+  imported: number;
+  gone: number;
+  durationMs: number;
+}
+
+/** The Jellyfin card of the admin page (GET admin/jellyfin). */
+export interface JellyfinState {
+  configured: boolean;
+  /** The Jellyfin account of the admin's household, "" when none. */
+  jellyfinUserId: string;
+  running: boolean;
+  lastSync: JellyfinSyncResult | null;
 }
 
 export interface TestResult {
