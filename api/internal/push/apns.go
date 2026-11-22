@@ -256,6 +256,23 @@ func signES256(key *ecdsa.PrivateKey, keyID, teamID string, now time.Time) (stri
 	return unsigned + "." + encoding.EncodeToString(signature), nil
 }
 
+// CheckCredential loads the .p8 file of a credential and signs a token with
+// it, like a real push would, without sending anything to Apple.
+func CheckCredential(credential Credential) error {
+	pemData, err := os.ReadFile(credential.KeyFile)
+	if err != nil {
+		return fmt.Errorf("key %s: cannot read the .p8 file", credential.KeyID)
+	}
+	key, err := parseKey(pemData)
+	if err != nil {
+		return fmt.Errorf("key %s: %v", credential.KeyID, err)
+	}
+	if _, err := signES256(key, credential.KeyID, credential.TeamID, time.Now()); err != nil {
+		return fmt.Errorf("key %s: cannot sign: %v", credential.KeyID, err)
+	}
+	return nil
+}
+
 // ValidateKey checks that the content of a .p8 file is an Apple APNs key.
 func ValidateKey(pemData []byte) error {
 	_, err := parseKey(pemData)

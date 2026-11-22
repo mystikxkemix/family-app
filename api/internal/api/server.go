@@ -213,6 +213,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/admin/settings", s.adminOnly(s.adminGetSettings))
 	mux.HandleFunc("PUT /api/v1/admin/settings", s.adminOnly(s.adminPutSettings))
 	mux.HandleFunc("POST /api/v1/admin/settings/test", s.adminOnly(s.adminTestTool))
+	mux.HandleFunc("GET /api/v1/admin/connections", s.adminOnly(s.adminConnections))
 
 	// Unknown API paths answer JSON; everything else is the website.
 	mux.HandleFunc("/api/", s.handle(func(w http.ResponseWriter, r *http.Request) error { return errNotFound }))
