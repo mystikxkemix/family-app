@@ -1,6 +1,16 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "%@ · %lld ms": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$lld ms"
+          }
+        }
+      }
+    },
     "%@/10 · %@ votes": {
       "localizations": {
         "fr": {
@@ -421,6 +431,16 @@
         }
       }
     },
+    "Connections": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connexions"
+          }
+        }
+      }
+    },
     "Create a list for groceries, to-dos or anything you share.": {
       "localizations": {
         "fr": {
@@ -457,6 +477,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mot de passe actuel"
+          }
+        }
+      }
+    },
+    "Database": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Base de données"
           }
         }
       }
@@ -791,6 +821,16 @@
         }
       }
     },
+    "Jellyfin": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin"
+          }
+        }
+      }
+    },
     "Join": {
       "localizations": {
         "fr": {
@@ -997,6 +1037,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pas pour moi"
+          }
+        }
+      }
+    },
+    "Not set up": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non configuré"
           }
         }
       }
@@ -1221,6 +1271,36 @@
         }
       }
     },
+    "Prowlarr": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prowlarr"
+          }
+        }
+      }
+    },
+    "Push notifications": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications push"
+          }
+        }
+      }
+    },
+    "Radarr": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Radarr"
+          }
+        }
+      }
+    },
     "Rate": {
       "localizations": {
         "fr": {
@@ -1391,6 +1471,16 @@
         }
       }
     },
+    "Sonarr": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sonarr"
+          }
+        }
+      }
+    },
     "Starts": {
       "localizations": {
         "fr": {
@@ -1411,12 +1501,42 @@
         }
       }
     },
+    "TMDB": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TMDB"
+          }
+        }
+      }
+    },
     "TV show": {
       "localizations": {
         "fr": {
           "stringUnit": {
             "state": "translated",
             "value": "Série"
+          }
+        }
+      }
+    },
+    "Test again": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tester à nouveau"
+          }
+        }
+      }
+    },
+    "Tests the services the server uses. Only admins see this.": {
+      "localizations": {
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teste les services utilisés par le serveur. Visible seulement par les admins."
           }
         }
       }

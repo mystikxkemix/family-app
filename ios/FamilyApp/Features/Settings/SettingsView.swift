@@ -19,6 +19,9 @@ struct SettingsView: View {
                 inviteSection
                 notificationSection
                 accountSection
+                if session.me?.user.isAdmin == true {
+                    ConnectionsSection()
+                }
                 aboutSection
             }
             .navigationTitle("Settings")

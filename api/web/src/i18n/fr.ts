@@ -182,6 +182,13 @@ export const fr: Record<MessageKey, string> = {
   'settings.logoutConfirm': 'Se déconnecter ?',
 
   'admin.title': 'Admin',
+  'connections.title': 'Connexions',
+  'connections.testAll': 'Tout tester',
+  'connections.testing': 'Test en cours…',
+  'connections.notSetUp': 'Non configuré',
+  'connections.hint': 'Teste les services utilisés par le serveur : base de données, outils média, TMDB et clés push.',
+  'connections.database': 'Base de données',
+  'connections.push': 'Notifications push',
   'admin.status': 'État',
   'admin.version': 'Version',
   'admin.startedAt': 'Démarré',

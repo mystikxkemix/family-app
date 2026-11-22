@@ -835,3 +835,80 @@ func TestAdminTMDBKey(t *testing.T) {
 		t.Fatal("remove must delete the key and turn TMDB off")
 	}
 }
+
+func TestAdminConnections(t *testing.T) {
+	arrFake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-Api-Key") != "good" {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"message":"Unauthorized"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"appName":"Radarr","version":"5.14"}`))
+	}))
+	defer arrFake.Close()
+	tmdbFake := fakeTMDB(t, nil)
+
+	// A valid APNs key on disk.
+	directory := t.TempDir()
+	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	der, _ := x509.MarshalPKCS8PrivateKey(key)
+	keyFile := filepath.Join(directory, "AuthKey_KEY0000001.p8")
+	if err := os.WriteFile(keyFile, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	settings := config.Settings{
+		Radarr:   config.ArrConfig{URL: arrFake.URL, APIKey: "good"},
+		Sonarr:   config.ArrConfig{URL: arrFake.URL, APIKey: "wrong"},
+		Prowlarr: config.ArrConfig{URL: "http://127.0.0.1:1", APIKey: "x"},
+		TMDB:     config.TMDBConfig{APIKey: "tmdb-key"},
+		APNs:     push.Config{Credentials: []push.Credential{{TeamID: "ABCDE12345", KeyID: "KEY0000001", KeyFile: keyFile, Topics: []string{"a.b"}}}},
+	}
+	server, httpServer := newTestServerWith(t, Options{SessionTTL: time.Hour, Admin: testAdmin, Settings: settings, TMDBBaseURL: tmdbFake.URL})
+	alex := signUp(t, server, httpServer.URL)
+
+	var results []connectionResult
+	alex.call("GET", "/api/v1/admin/connections", nil, 200, &results)
+	byService := map[string]connectionResult{}
+	order := []string{}
+	for _, result := range results {
+		byService[result.Service] = result
+		order = append(order, result.Service)
+	}
+	if strings.Join(order, ",") != "database,radarr,sonarr,prowlarr,tmdb,push" {
+		t.Fatalf("order: %v", order)
+	}
+	expect := func(service string, configured, ok bool, contains string) {
+		t.Helper()
+		got := byService[service]
+		if got.Configured != configured || got.OK != ok || !strings.Contains(got.Message, contains) {
+			t.Fatalf("%s: %+v", service, got)
+		}
+	}
+	expect("database", true, true, "MongoDB")
+	expect("radarr", true, true, "Radarr 5.14")
+	expect("sonarr", true, false, "401")
+	expect("prowlarr", true, false, "not reachable")
+	expect("tmdb", true, true, "TMDB")
+	expect("push", true, true, "1 APNs key")
+	if strings.Contains(byService["sonarr"].Message, "wrong") {
+		t.Fatal("a message must never contain the key")
+	}
+
+	// A member cannot run the tests.
+	var invite inviteResponse
+	alex.call("POST", "/api/v1/household/invites", nil, 201, &invite)
+	var samAuth authResponse
+	(&client{t: t, base: httpServer.URL}).call("POST", "/api/v1/auth/register", map[string]string{"username": "sam", "password": "password-2", "displayName": "Sam", "inviteCode": invite.Code}, 201, &samAuth)
+	(&client{t: t, base: httpServer.URL, token: samAuth.Token}).call("GET", "/api/v1/admin/connections", nil, 403, nil)
+
+	// Nothing set up: every tool says so, the database still answers.
+	bare, bareServer := newTestServer(t)
+	admin := signUp(t, bare, bareServer.URL)
+	admin.call("GET", "/api/v1/admin/connections", nil, 200, &results)
+	for _, result := range results {
+		if result.Service != "database" && (result.Configured || result.Message != "not set up") {
+			t.Fatalf("not set up expected: %+v", result)
+		}
+	}
+}
