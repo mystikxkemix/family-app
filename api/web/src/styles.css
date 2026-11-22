@@ -1079,3 +1079,38 @@ a.button {
     height: 144px;
   }
 }
+
+/* Admin > Connections */
+.connections {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.connection {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.connection-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.connection-status {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  flex: none;
+  background: rgba(127, 127, 127, 0.18);
+}
+.connection.ok .connection-status { background: #2e9d5b; color: #fff; }
+.connection.failed .connection-status { background: #d64545; color: #fff; }
+.connection.failed .connection-text .muted { color: #d64545; }

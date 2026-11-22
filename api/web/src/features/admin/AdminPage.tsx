@@ -1,6 +1,7 @@
 import { useI18n } from '../../i18n';
 import { PageHeader } from '../../components/ui';
 import { StatusSection } from './StatusSection';
+import { ConnectionsSection } from './ConnectionsSection';
 import { UsersSection } from './UsersSection';
 import { MediaToolsSection, PushSection, useAdminSettings } from './SettingsSections';
 
@@ -12,6 +13,7 @@ export function AdminPage() {
     <section className="page narrow">
       <PageHeader title={t('admin.title')} />
       <StatusSection />
+      <ConnectionsSection />
       <UsersSection />
       <MediaToolsSection settings={settings} />
       <PushSection settings={settings} />

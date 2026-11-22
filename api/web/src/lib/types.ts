@@ -278,3 +278,13 @@ export interface TestResult {
   ok: boolean;
   message: string;
 }
+
+/** One row of Admin > Connections (GET admin/connections). */
+export interface ConnectionResult {
+  service: string;
+  configured: boolean;
+  ok: boolean;
+  /** Version on success, reason on failure. */
+  message: string;
+  latencyMs: number;
+}

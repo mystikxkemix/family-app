@@ -181,6 +181,13 @@ export const en = {
   'settings.logoutConfirm': 'Log out?',
 
   'admin.title': 'Admin',
+  'connections.title': 'Connections',
+  'connections.testAll': 'Test all',
+  'connections.testing': 'Testing…',
+  'connections.notSetUp': 'Not set up',
+  'connections.hint': 'Tests the services the server uses: database, media tools, TMDB and push keys.',
+  'connections.database': 'Database',
+  'connections.push': 'Push notifications',
   'admin.status': 'Status',
   'admin.version': 'Version',
   'admin.startedAt': 'Started',
