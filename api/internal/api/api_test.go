@@ -875,7 +875,7 @@ func TestAdminConnections(t *testing.T) {
 		byService[result.Service] = result
 		order = append(order, result.Service)
 	}
-	if strings.Join(order, ",") != "database,radarr,sonarr,prowlarr,tmdb,push" {
+	if strings.Join(order, ",") != "database,radarr,sonarr,prowlarr,tmdb,jellyfin,push" {
 		t.Fatalf("order: %v", order)
 	}
 	expect := func(service string, configured, ok bool, contains string) {

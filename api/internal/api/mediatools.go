@@ -18,6 +18,8 @@ type integrations struct {
 	Prowlarr bool `json:"prowlarr"`
 	// TMDB gives search results and the details pages.
 	TMDB bool `json:"tmdb"`
+	// Jellyfin marks what we have and what we watched.
+	Jellyfin bool `json:"jellyfin"`
 }
 
 func (s *Server) integrations() integrations {
@@ -27,6 +29,7 @@ func (s *Server) integrations() integrations {
 		Sonarr:   services.Sonarr != nil,
 		Prowlarr: services.Prowlarr != nil,
 		TMDB:     s.tmdbClient() != nil,
+		Jellyfin: s.jellyfinClient() != nil,
 	}
 }
 

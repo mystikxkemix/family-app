@@ -239,6 +239,15 @@ type adminKeySettings struct {
 	Remove bool `json:"remove,omitempty"`
 }
 
+// adminJellyfinSettings is the Jellyfin address and key. The household's
+// Jellyfin user is set with PUT /admin/jellyfin/household.
+type adminJellyfinSettings struct {
+	URL string `json:"url"`
+	// APIKey is only sent by the website; "" keeps the saved key.
+	APIKey    string `json:"apiKey,omitempty"`
+	APIKeySet bool   `json:"apiKeySet"`
+}
+
 type adminAPNsCredential struct {
 	TeamID string   `json:"teamId"`
 	KeyID  string   `json:"keyId"`
@@ -249,10 +258,11 @@ type adminAPNsCredential struct {
 }
 
 type adminSettings struct {
-	Radarr   adminArrSettings `json:"radarr"`
-	Sonarr   adminArrSettings `json:"sonarr"`
-	Prowlarr adminArrSettings `json:"prowlarr"`
-	TMDB     adminKeySettings `json:"tmdb"`
+	Radarr   adminArrSettings      `json:"radarr"`
+	Sonarr   adminArrSettings      `json:"sonarr"`
+	Prowlarr adminArrSettings      `json:"prowlarr"`
+	TMDB     adminKeySettings      `json:"tmdb"`
+	Jellyfin adminJellyfinSettings `json:"jellyfin"`
 	APNs     struct {
 		Credentials []adminAPNsCredential `json:"credentials"`
 	} `json:"apns"`
@@ -273,6 +283,7 @@ func masked(settings config.Settings) adminSettings {
 		Sonarr:   maskedArr(settings.Sonarr),
 		Prowlarr: maskedArr(settings.Prowlarr),
 		TMDB:     adminKeySettings{APIKeySet: settings.TMDB.Enabled()},
+		Jellyfin: adminJellyfinSettings{URL: settings.Jellyfin.URL, APIKeySet: settings.Jellyfin.APIKey != ""},
 	}
 	result.APNs.Credentials = []adminAPNsCredential{}
 	for _, credential := range settings.APNs.Credentials {
@@ -318,6 +329,9 @@ func (s *Server) adminPutSettings(w http.ResponseWriter, r *http.Request, caller
 		return err
 	}
 	next.TMDB = mergeKey(request.TMDB, current.TMDB)
+	if next.Jellyfin, err = mergeJellyfin(request.Jellyfin, current.Jellyfin); err != nil {
+		return err
+	}
 	if next.APNs, err = s.mergeAPNs(request.APNs.Credentials, current.APNs); err != nil {
 		return err
 	}
@@ -362,6 +376,16 @@ func mergeArr(name string, request adminArrSettings, current config.ArrConfig) (
 		QualityProfileID: request.QualityProfileID,
 		RootFolder:       strings.TrimSpace(request.RootFolder),
 	}, nil
+}
+
+// mergeJellyfin validates the Jellyfin address and key. An empty key keeps the
+// saved one; an empty URL turns Jellyfin off.
+func mergeJellyfin(request adminJellyfinSettings, current config.JellyfinConfig) (config.JellyfinConfig, error) {
+	tool, err := mergeArr("jellyfin", adminArrSettings{URL: request.URL, APIKey: request.APIKey}, config.ArrConfig{APIKey: current.APIKey})
+	if err != nil {
+		return config.JellyfinConfig{}, err
+	}
+	return config.JellyfinConfig{URL: tool.URL, APIKey: tool.APIKey}, nil
 }
 
 // mergeKey applies the website's change to a key-only tool: a new key,
@@ -463,8 +487,12 @@ func (s *Server) adminTestTool(w http.ResponseWriter, r *http.Request, caller pr
 		if client := s.tmdbClient(); client != nil {
 			ping = client.Ping
 		}
+	case "jellyfin":
+		if client := s.jellyfinClient(); client != nil {
+			ping = client.Ping
+		}
 	default:
-		return badRequest("tool must be radarr, sonarr, prowlarr or tmdb")
+		return badRequest("tool must be radarr, sonarr, prowlarr, tmdb or jellyfin")
 	}
 	if ping == nil {
 		writeJSON(w, http.StatusOK, testToolResponse{OK: false, Message: request.Tool + " is not configured"})

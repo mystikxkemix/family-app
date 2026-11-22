@@ -11,6 +11,12 @@ type Household struct {
 	ID        bson.ObjectID `bson:"_id" json:"id"`
 	Name      string        `bson:"name" json:"name"`
 	CreatedAt time.Time     `bson:"createdAt" json:"createdAt"`
+	// JellyfinUserID is the Jellyfin account of the household (one account
+	// for the whole household). Empty: no Jellyfin sync.
+	JellyfinUserID string `bson:"jellyfinUserId,omitempty" json:"-"`
+	// JellyfinIgnoredItems are Jellyfin items whose watchlist title was
+	// deleted: the sync never imports them again.
+	JellyfinIgnoredItems []string `bson:"jellyfinIgnoredItems,omitempty" json:"-"`
 }
 
 // User is an account. Every user belongs to exactly one household.
@@ -148,8 +154,43 @@ type Media struct {
 	MatchCheckedAt *time.Time `bson:"matchCheckedAt,omitempty" json:"-"`
 	// DownloadRequestedAt is when someone sent it to Radarr or Sonarr.
 	DownloadRequestedAt *time.Time `bson:"downloadRequestedAt,omitempty" json:"downloadRequestedAt,omitempty"`
-	CreatedAt           time.Time  `bson:"createdAt" json:"createdAt"`
-	UpdatedAt           time.Time  `bson:"updatedAt" json:"updatedAt"`
+	// Source is "jellyfin" for a title the Jellyfin sync added, "" otherwise.
+	Source string `bson:"source,omitempty" json:"source,omitempty"`
+	// StatusSetBy is who set the status last: "user" or "jellyfin". A status
+	// set by a user is kept until Jellyfin's played state changes.
+	StatusSetBy string `bson:"statusSetBy,omitempty" json:"-"`
+	// Jellyfin is the matching Jellyfin item, when there is one.
+	Jellyfin  *MediaJellyfin `bson:"jellyfin,omitempty" json:"jellyfin,omitempty"`
+	CreatedAt time.Time      `bson:"createdAt" json:"createdAt"`
+	UpdatedAt time.Time      `bson:"updatedAt" json:"updatedAt"`
+}
+
+// Who changed a watchlist status last (Media.StatusSetBy).
+const (
+	StatusSetByUser     = "user"
+	StatusSetByJellyfin = "jellyfin"
+	// SourceJellyfin marks the titles the Jellyfin sync added.
+	SourceJellyfin = "jellyfin"
+)
+
+// Played states of a Jellyfin item (MediaJellyfin.State).
+const (
+	JellyfinStateNone     = ""
+	JellyfinStateWatching = "watching"
+	JellyfinStateWatched  = "watched"
+)
+
+// MediaJellyfin links a watchlist title to a Jellyfin item.
+type MediaJellyfin struct {
+	ItemID string `bson:"itemId" json:"-"`
+	// Available is false once the item is no longer in Jellyfin.
+	Available bool `bson:"available" json:"available"`
+	// PlayedAt is the last time it was played in Jellyfin.
+	PlayedAt *time.Time `bson:"playedAt,omitempty" json:"playedAt,omitempty"`
+	// State is the played state seen at the last sync (JellyfinState*). A
+	// change of state is what lets the sync move a status set by a user.
+	State    string    `bson:"state" json:"-"`
+	SyncedAt time.Time `bson:"syncedAt" json:"-"`
 }
 
 // Event is a shared calendar entry.

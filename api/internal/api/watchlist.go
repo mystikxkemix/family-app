@@ -116,6 +116,7 @@ func (s *Server) createMedia(w http.ResponseWriter, r *http.Request, caller prin
 		Year:        deref(request.Year),
 		Note:        fields["note"].(string),
 		Status:      fields["status"].(string),
+		StatusSetBy: store.StatusSetByUser,
 		AddedBy:     caller.User.ID,
 		// Whoever adds a title wants to watch it, unless they say otherwise.
 		InterestedUserIDs: []bson.ObjectID{caller.User.ID},
@@ -176,6 +177,8 @@ func (s *Server) updateMedia(w http.ResponseWriter, r *http.Request, caller prin
 	}
 	update := bson.M{"$set": set}
 	if status, ok := set["status"].(string); ok {
+		// A user's choice: the Jellyfin sync keeps it (see jellyfinChanges).
+		set["statusSetBy"] = store.StatusSetByUser
 		if status == store.MediaStatusWatched {
 			set["watchedAt"] = store.Now()
 		} else {
@@ -196,8 +199,18 @@ func (s *Server) deleteMedia(w http.ResponseWriter, r *http.Request, caller prin
 	if err != nil {
 		return err
 	}
+	media, err := s.store.MediaByID(r.Context(), caller.HouseholdID, mediaID)
+	if err != nil {
+		return err
+	}
 	if err := s.store.DeleteMedia(r.Context(), caller.HouseholdID, mediaID); err != nil {
 		return err
+	}
+	if media.Jellyfin != nil && media.Jellyfin.ItemID != "" {
+		// Deleted on purpose: the Jellyfin sync must not import it again.
+		if err := s.store.IgnoreJellyfinItem(r.Context(), caller.HouseholdID, media.Jellyfin.ItemID); err != nil {
+			return err
+		}
 	}
 	noContent(w)
 	return nil

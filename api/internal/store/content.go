@@ -254,6 +254,28 @@ func (s *Store) SetMediaMatch(ctx context.Context, id bson.ObjectID, set bson.M)
 	return err
 }
 
+// MarkJellyfinGone sets "not available" on the household titles linked to a
+// Jellyfin item that the last sync did not see (keep lists the ones it saw).
+func (s *Store) MarkJellyfinGone(ctx context.Context, householdID bson.ObjectID, keep []bson.ObjectID) (int64, error) {
+	filter := bson.M{"householdId": householdID, "jellyfin.available": true, "_id": bson.M{"$nin": keep}}
+	result, err := s.media.UpdateMany(ctx, filter, bson.M{"$set": bson.M{"jellyfin.available": false, "jellyfin.syncedAt": Now()}})
+	if err != nil {
+		return 0, err
+	}
+	return result.ModifiedCount, nil
+}
+
+// ImportedWithoutDetails returns titles added by a sync (source) that have a
+// TMDB id but were never looked up at TMDB (no poster yet).
+func (s *Store) ImportedWithoutDetails(ctx context.Context, source string, limit int64) ([]Media, error) {
+	filter := bson.M{
+		"source":           source,
+		"externalIds.tmdb": bson.M{"$gt": 0},
+		"matchCheckedAt":   bson.M{"$exists": false},
+	}
+	return findAll[Media](ctx, s.media, filter, options.Find().SetLimit(limit).SetSort(bson.D{{Key: "createdAt", Value: 1}}))
+}
+
 // --- Events -------------------------------------------------------------------
 
 // Events returns the events that end (or start, when they have no end) after

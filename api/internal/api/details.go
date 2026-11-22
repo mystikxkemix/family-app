@@ -181,11 +181,15 @@ func (s *Server) triggerMatch() {
 	}
 }
 
-// Close stops the background work.
+// Close stops the background work (TMDB matching, Jellyfin sync).
 func (s *Server) Close() {
 	if s.matchStop != nil {
 		close(s.matchStop)
 		<-s.matchDone
+	}
+	if s.jellyfinStop != nil {
+		close(s.jellyfinStop)
+		<-s.jellyfinDone
 	}
 }
 

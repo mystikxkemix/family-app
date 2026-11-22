@@ -15,6 +15,7 @@ import (
 	"familyapp/internal/arr"
 	"familyapp/internal/auth"
 	"familyapp/internal/config"
+	"familyapp/internal/jellyfin"
 	"familyapp/internal/push"
 	"familyapp/internal/store"
 	"familyapp/internal/tmdb"
@@ -61,11 +62,20 @@ type Server struct {
 	arr        atomic.Pointer[arr.Services]
 	// tmdb is nil when no TMDB key is set.
 	tmdb atomic.Pointer[tmdb.Client]
+	// jellyfin is nil when Jellyfin is not set up.
+	jellyfin atomic.Pointer[jellyfin.Client]
 
 	// Automatic TMDB matching (details.go).
 	matchTrigger chan struct{}
 	matchStop    chan struct{}
 	matchDone    chan struct{}
+
+	// Jellyfin sync (jellyfin.go). jellyfinRunning is true while a sync runs.
+	jellyfinTrigger  chan struct{}
+	jellyfinStop     chan struct{}
+	jellyfinDone     chan struct{}
+	jellyfinRunning  atomic.Bool
+	lastJellyfinSync atomic.Pointer[jellyfinSyncResult]
 
 	// requestLimiter limits every request per client IP.
 	requestLimiter *auth.Limiter
@@ -109,6 +119,7 @@ func New(ctx context.Context, st *store.Store, notifier *push.Notifier, log *slo
 		return nil, err
 	}
 	s.startMatcher()
+	s.startJellyfinSync()
 	return s, nil
 }
 
@@ -116,9 +127,18 @@ func New(ctx context.Context, st *store.Store, notifier *push.Notifier, log *slo
 // APNs client. The caller holds settingsMu.
 func (s *Server) applySettingsLocked(settings config.Settings, sender push.Sender) {
 	keyChanged := settings.TMDB.APIKey != s.settings.TMDB.APIKey
+	jellyfinChanged := settings.Jellyfin != s.settings.Jellyfin
 	s.settings = settings
 	s.arr.Store(arr.New(settings.Radarr, settings.Sonarr, settings.Prowlarr))
 	s.notifier.SetSender(sender)
+	if settings.Jellyfin.Enabled() {
+		s.jellyfin.Store(jellyfin.New(settings.Jellyfin.URL, settings.Jellyfin.APIKey))
+	} else {
+		s.jellyfin.Store(nil)
+	}
+	if jellyfinChanged {
+		s.triggerJellyfin()
+	}
 	if !settings.TMDB.Enabled() {
 		s.tmdb.Store(nil)
 		return
@@ -214,6 +234,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/v1/admin/settings", s.adminOnly(s.adminPutSettings))
 	mux.HandleFunc("POST /api/v1/admin/settings/test", s.adminOnly(s.adminTestTool))
 	mux.HandleFunc("GET /api/v1/admin/connections", s.adminOnly(s.adminConnections))
+	mux.HandleFunc("GET /api/v1/admin/jellyfin", s.adminOnly(s.adminJellyfin))
+	mux.HandleFunc("GET /api/v1/admin/jellyfin/users", s.adminOnly(s.adminJellyfinUsers))
+	mux.HandleFunc("PUT /api/v1/admin/jellyfin/household", s.adminOnly(s.adminSetJellyfinUser))
+	mux.HandleFunc("POST /api/v1/admin/jellyfin/sync", s.adminOnly(s.adminSyncJellyfin))
 
 	// Unknown API paths answer JSON; everything else is the website.
 	mux.HandleFunc("/api/", s.handle(func(w http.ResponseWriter, r *http.Request) error { return errNotFound }))
