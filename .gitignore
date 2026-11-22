@@ -37,3 +37,6 @@ api/internal/webui/dist/*
 
 # Machine-specific notes for Claude (server address, devices, teams)
 CLAUDE.local.md
+
+# Git worktrees of parallel agents
+.claude/worktrees/

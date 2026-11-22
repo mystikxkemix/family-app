@@ -29,6 +29,7 @@ section for admins:
 - server status;
 - users: make someone admin, reset a password (the person must change it at
   the next login), delete an account;
+- connections: tests the database, Radarr, Sonarr, Prowlarr, TMDB and the push keys at once (also in the iPhone app, Settings > Connections, for admins);
 - media tools (Radarr, Sonarr, Prowlarr) and push keys: saved to
   `settings.json` and applied at once, with a "Test" button. Secrets are never
   shown again after saving.
